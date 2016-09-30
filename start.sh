@@ -11,11 +11,15 @@ CLUSTER_NAME=${CLUSTER_NAME:-cluster}
 MYSQL_MODE_ARGS=""
 
 if [ -z "$NODE_ADDRESS" ]; then
-    # Support Weave/Kontena
-    NODE_ADDRESS=$(ip addr | awk '/inet/ && /ethwe/{sub(/\/.*$/,"",$2); print $2}')
+	# Support Weave/Kontena
+	NODE_ADDRESS=$(ip addr | awk '/inet/ && /ethwe/{sub(/\/.*$/,"",$2); print $2}')
 elif [[ "$NODE_ADDRESS" =~ [a-zA-Z][a-zA-Z0-9:]+ ]]; then
-    # Support Docker Swarm Mode (e.g. eth0)
-    NODE_ADDRESS=$(ip addr | awk "/inet/ && / $NODE_ADDRESS\$/{sub(/\\/.*$/,\"\",\$2); print \$2}")
+	# Support Docker Swarm Mode (e.g. eth0)
+	NODE_ADDRESS=$(ip addr | awk "/inet/ && / $NODE_ADDRESS\$/{sub(/\\/.*$/,\"\",\$2); print \$2}" | head -n 1)
+fi
+if ! expr "$NODE_ADDRESS" : '^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null; then
+	echo "Could not determine NODE_ADDRESS: $NODE_ADDRESS"
+	exit 1
 fi
 
 case "$1" in
