@@ -32,10 +32,10 @@ case "$1" in
 			fi
 
 			cat >/tmp/bootstrap.sql <<EOF
-CREATE USER 'xtrabackup'@'localhost' IDENTIFIED BY '$XTRABACKUP_PASSWORD';
-GRANT RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'localhost';
-CREATE USER 'clustercheck'@'localhost' IDENTIFIED BY '$CLUSTERCHECK_PASSWORD';
-GRANT PROCESS ON *.* TO 'clustercheck'@'localhost';
+CREATE USER 'xtrabackup'@'127.0.0.1' IDENTIFIED BY '$XTRABACKUP_PASSWORD';
+GRANT RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'127.0.0.1';
+CREATE USER 'clustercheck'@'127.0.0.1' IDENTIFIED BY '$CLUSTERCHECK_PASSWORD';
+GRANT PROCESS ON *.* TO 'clustercheck'@'127.0.0.1';
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'%';
 UPDATE mysql.user SET Password=PASSWORD('$MYSQL_ROOT_PASSWORD') WHERE User='root';
 EOF
