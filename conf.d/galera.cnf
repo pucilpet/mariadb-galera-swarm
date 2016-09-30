@@ -7,5 +7,6 @@ innodb_autoinc_lock_mode=2
 innodb_flush_log_at_trx_commit=0
 bind-address=0.0.0.0
 
+wsrep_on=ON
 wsrep_provider=/usr/lib/galera/libgalera_smm.so
 wsrep_sst_method=xtrabackup

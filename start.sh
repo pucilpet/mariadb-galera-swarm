@@ -74,9 +74,11 @@ EOF
 			if expr "$ADDR" : '^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null; then
 				GCOMM+="$SEP$ADDR"
 			else
-				GCOMM+="$SEP$(host -t A "$ADDR" | awk '{ print $4 }' | paste -sd ",")"
+				GCOMM+="$SEP$(host -t A "$ADDR" | awk '/has address/{ print $4 }' | paste -sd ",")"
 			fi
-			SEP=,
+			if [ -n "$GCOMM" ]; then
+				SEP=,
+			fi
 		done
 
 		shift 2

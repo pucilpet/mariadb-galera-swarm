@@ -30,7 +30,7 @@ fi
 # Get the GTID position
 echo  "${LOG_MESSAGE} Get the GTID positon"
 tmpfile=$(mktemp)
-$MYSQLD --wsrep-recover 2>${tmpfile}
+$MYSQLD $OPT --wsrep-recover 2>${tmpfile}
 if [ $? != 0 ]; then
   echo "${LOG_MESSAGE} An error happened while trying to '--wsrep-recover'"
   cat ${tmpfile}
