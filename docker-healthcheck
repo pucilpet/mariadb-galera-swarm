@@ -1,0 +1,10 @@
+#!/bin/bash
+# TODO - not yet complete. Return 0 for healthy, 1 for unhealthy
+# Echo reason for unhealthy status
+set -eo pipefail
+
+if curl -q -o /dev/null 'http://localhost:9200/'; then
+	exit 0
+fi
+
+exit 1
