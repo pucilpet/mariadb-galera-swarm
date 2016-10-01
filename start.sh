@@ -5,19 +5,27 @@ if [ -z "$XTRABACKUP_PASSWORD" ]; then
 	exit 1
 fi
 
-CLUSTERCHECK_PASSWORD=$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')
-GCOMM=""
+CLUSTERCHECK_PASSWORD=${CLUSTERCHECK_PASSWORD:-$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')}
 CLUSTER_NAME=${CLUSTER_NAME:-cluster}
+GCOMM_MINIMUM=${GCOMM_MINIMUM:-2}
+GCOMM=""
 MYSQL_MODE_ARGS=""
 
 if [ -z "$NODE_ADDRESS" ]; then
 	# Support Weave/Kontena
 	NODE_ADDRESS=$(ip addr | awk '/inet/ && /ethwe/{sub(/\/.*$/,"",$2); print $2}')
-elif [[ "$NODE_ADDRESS" =~ [a-zA-Z][a-zA-Z0-9:]+ ]]; then
-	# Support Docker Swarm Mode (e.g. eth0)
-	NODE_ADDRESS=$(ip addr | awk "/inet/ && / $NODE_ADDRESS\$/{sub(/\\/.*$/,\"\",\$2); print \$2}" | head -n 1)
 fi
-if ! expr "$NODE_ADDRESS" : '^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null; then
+if [ -z "$NODE_ADDRESS" ]; then
+	# Support Docker Swarm Mode
+	NODE_ADDRESS=$(ip addr | awk '/inet/ && /eth0/{sub(/\/.*$/,"",$2); print $2}')
+elif [[ "$NODE_ADDRESS" =~ [a-zA-Z][a-zA-Z0-9:]+ ]]; then
+	# Support interface - e.g. Docker Swarm Mode uses eth0
+	NODE_ADDRESS=$(ip addr | awk "/inet/ && / $NODE_ADDRESS\$/{sub(/\\/.*$/,\"\",\$2); print \$2}" | head -n 1)
+elif ! [[ "$NODE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    # Support grep pattern. E.g. ^10.0.1.*
+    NODE_ADDRESS=$(getent hosts $(hostname) | grep -e "$NODE_ADDRESS")
+fi
+if ! [[ "$NODE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	echo "Could not determine NODE_ADDRESS: $NODE_ADDRESS"
 	exit 1
 fi
@@ -69,18 +77,36 @@ EOF
 			exit 1
 		fi
 		ADDRS="$2"
-		SEP=""
-		for ADDR in ${ADDRS//,/ }; do
-			if expr "$ADDR" : '^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null; then
-				GCOMM+="$SEP$ADDR"
+		RETRIES=0
+		RESOLVE=0
+		while 1; do
+			SEP=""
+			for ADDR in ${ADDRS//,/ }; do
+				if [[ "$ADDR" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+					GCOMM+="$SEP$ADDR"
+				else
+					RESOLVE=1
+					GCOMM+="$SEP$(getent hosts "$ADDR" | awk '{ print $1 }' | paste -sd ",")"
+				fi
+				if [ -n "$GCOMM" ]; then
+					SEP=,
+				fi
+			done
+			GCOMM=${GCOMM%%,}                        # strip trailing commas
+			GCOMM=$(echo "$GCOMM" | sed 's/,\+/,/g') # strip duplicate commas
+
+			# It is possible that containers on other nodes aren't running yet and should be waited on
+			# before trying to start. For example, this occurs when updated container images are being pulled
+			# by `docker service update <service>` or on a full cluster power loss
+			COUNT=$(echo "$GCOMM" | tr ',' "\n" | grep -v -e "^$NODE_ADDRESS\$" | wc -l)
+			if [ $RESOLVE -eq 1 -a $COUNT -lt $(($GCOMM_MINIMUM - 1)) -a $RETRIES -lt 20 ]; then
+				RETRIES=$(($RETRIES + 1))
+				echo "Waiting for at least $GCOMM_MINIMUM IP addresses to resolve..."
+				sleep 3
 			else
-				GCOMM+="$SEP$(host -t A "$ADDR" | awk '/has address/{ print $4 }' | paste -sd ",")"
-			fi
-			if [ -n "$GCOMM" ]; then
-				SEP=,
+				break
 			fi
 		done
-
 		shift 2
 		echo "Starting node, connecting to gcomm://$GCOMM"
 		;;
