@@ -85,7 +85,7 @@ EOF
 		ADDRS="$2"
 		RETRIES=0
 		RESOLVE=0
-		while 1; do
+		while true; do
 			SEP=""
 			for ADDR in ${ADDRS//,/ }; do
 				if [[ "$ADDR" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
