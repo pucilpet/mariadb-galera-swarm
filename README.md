@@ -40,9 +40,6 @@ Additional variables for "seed":
 Additional variables for "node":
 
  - `GCOMM_MINIMUM` (optional - defaults to 2)
-   When using DNS for node addresses the container start script will wait up to 60 seconds for this many IP
-   addresses to resolve before trying to start `mysqld` in case some containers are starting slower than
-   others (e.g. some nodes may finish downloading container images sooner, or DNS updates may be slow to propagate).
 
 ### More Info
 
@@ -56,11 +53,19 @@ Additional variables for "node":
  - If your container network uses something other than `ethwe*` or `eth0` then you need to specify `NODE_ADDRESS`
    as either the name of the interface to listen on or a grep pattern to match one of the container's IP addresses.
    E.g.: `NODE_ADDRESS='^10.0.1.*'`
+ - When using DNS for node address discovery the container entrypoint script will wait up to 60 seconds for
+   `GCOMM_MINIMUM` IP addresses to resolve before trying to start `mysqld` in case some containers are starting
+   slower than others to increase the chance of a healthy recovery. Scenrios where not enough IPs would resolve
+   might include:
+    - Some nodes may finish pulling container images from remote repositories sooner than others
+    - DNS updates may be slow to propagate one way or another
+    - Others?
 
 ### Credit
 
-Forked from ["jakolehm/docker-galera-mariadb-10.0"](https://github.com/jakolehm/docker-galera-mariadb-10.0)
-galera-healthcheck go binary from ["sttts/galera-healthcheck"](https://github.com/sttts/galera-healthcheck)
+ - Forked from ["jakolehm/docker-galera-mariadb-10.0"](https://github.com/jakolehm/docker-galera-mariadb-10.0)
+   - Forked from ["sttts/docker-galera-mariadb-10.0"](https://github.com/sttts/docker-galera-mariadb-10.0)
+ - galera-healthcheck go binary from ["sttts/galera-healthcheck"](https://github.com/sttts/galera-healthcheck)
 
 ### Changes
 

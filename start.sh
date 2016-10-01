@@ -11,6 +11,9 @@ GCOMM_MINIMUM=${GCOMM_MINIMUM:-2}
 GCOMM=""
 MYSQL_MODE_ARGS=""
 
+#
+# Resolve node address
+#
 if [ -z "$NODE_ADDRESS" ]; then
 	# Support Weave/Kontena
 	NODE_ADDRESS=$(ip addr | awk '/inet/ && /ethwe/{sub(/\/.*$/,"",$2); print $2}')
@@ -30,6 +33,9 @@ if ! [[ "$NODE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	exit 1
 fi
 
+#
+# Bootstrap either "seed" or "node"
+#
 case "$1" in
 	seed)
 		# bootstrapping
