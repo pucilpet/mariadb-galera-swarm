@@ -78,3 +78,4 @@ Additional variables for "node":
  - Delay starting mysqld until at least one other node is up when using DNS resolution for node list.
  - Bundle galera-healthcheck binary.
  - Fix bugs in mysqld startup.
+ - Add sourcing of /usr/local/lib/startup.sh for easier entrypoint extension.
