@@ -17,7 +17,7 @@ fi
 # Get the GTID position if possible
 if ! [[ "$OPT" =~ /--wsrep-new-cluster/ ]]; then
 	echo  "${LOG_MESSAGE} Recovering GTID positon"
-	tmpfile=$(mktemp wsrep_recover.XXXXXX)
+	tmpfile=$(mktemp -t wsrep_recover.XXXXXX)
 	if test -z "$tmpfile" || ! $MYSQLD $OPT --wsrep-recover 2>${tmpfile}; then
 		echo "${LOG_MESSAGE} An error happened while trying to '--wsrep-recover'"
 		test -f $tmpfile && { cat ${tmpfile}; rm -f ${tmpfile}; }
