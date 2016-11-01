@@ -60,6 +60,7 @@ Additional variables for "node":
     - Some nodes may finish pulling container images from remote repositories sooner than others
     - DNS updates may be slow to propagate one way or another
     - Others?
+ - If the file `/usr/local/lib/startup.sh` exists it will be sourced in the start.sh script.
 
 ### Credit
 
