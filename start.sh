@@ -39,10 +39,29 @@ if [ -f /usr/local/lib/startup.sh ]; then
 fi
 
 #
-# Bootstrap either "seed" or "node"
+# Start modes:
+#  - sleep - Useful for running the container without MySQL, e.g. for running innobackupex restore
+#  - no-galera - Useful for running mysql_upgrade
+#  - seed - Start a new cluster - run only once and use 'node' after cluster is started
+#  - node - Join an existing cluster
 #
 case "$1" in
+	sleep)
+		echo "Sleeping forever..."
+		sleep infinity
+		exit
+		;;
+	no-galera)
+		echo "Starting with Galera disabled"
+		shift 1
+		gosu mysql mysqld --console \
+			--wsrep-on=OFF \
+			--default-time-zone="+00:00" \
+			"$@" 2>&1
+		exit
+		;;
 	seed)
+		MYSQL_MODE_ARGS+=" --wsrep-on=ON --wsrep-new-cluster"
 		# bootstrapping
 		if [ ! -f /var/lib/mysql/skip-cluster-bootstrapping ]; then
 			if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
@@ -77,12 +96,11 @@ EOF
 			echo -n "Bootstrapping cluster. "
 		fi
 
-		MYSQL_MODE_ARGS+=" --wsrep-new-cluster"
-
 		shift 1
 		echo "Starting seed node"
 		;;
 	node)
+		MYSQL_MODE_ARGS+=" --wsrep-on=ON"
 		if [ -z "$2" ]; then
 			echo "Missing master node address"
 			exit 1
@@ -122,7 +140,7 @@ EOF
 		echo "Starting node, connecting to gcomm://$GCOMM"
 		;;
 	*)
-		echo "seed|node <othernode>,..."
+		echo "sleep|no-galera|seed|node <othernode>,..."
 		exit 1
 esac
 

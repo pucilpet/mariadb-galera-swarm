@@ -79,3 +79,4 @@ Additional variables for "node":
  - Bundle galera-healthcheck binary.
  - Fix bugs in mysqld startup.
  - Add sourcing of /usr/local/lib/startup.sh for easier entrypoint extension.
+ - Add 'sleep' and 'no-galera' modes for easier maintenance.
