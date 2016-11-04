@@ -13,6 +13,6 @@ COPY start.sh /usr/local/bin/start.sh
 
 EXPOSE 3306 4444 4567 4567/udp 4568
 
-HEALTHCHECK CMD curl http://localhost:8080/ || exit 1
+HEALTHCHECK CMD curl -f -o - http://localhost:8080/ || exit 1
 
 ENTRYPOINT ["start.sh"]
