@@ -1,4 +1,16 @@
-#!/bin/bash -ex
+#!/bin/bash
+
+# Exit on errors but report line number
+set -e
+err_report() {
+    echo "start.sh: Error on line $1"
+}
+trap 'err_report $LINENO' ERR
+
+# Set 'TRACE=y' environment variable to see detailed output for debugging
+if [ "$TRACE" = "y" ]; then
+	set -x
+fi
 
 if [ -z "$XTRABACKUP_PASSWORD" ]; then
 	echo "XTRABACKUP_PASSWORD not set"
@@ -64,16 +76,21 @@ case "$1" in
 		MYSQL_MODE_ARGS+=" --wsrep-on=ON --wsrep-new-cluster"
 		# bootstrapping
 		if [ ! -f /var/lib/mysql/skip-cluster-bootstrapping ]; then
+			echo "Bootstrapping cluster..."
 			if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
 				MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
 				echo "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD"
 			fi
 
 			cat >/tmp/bootstrap.sql <<EOF
-CREATE USER 'xtrabackup'@'127.0.0.1' IDENTIFIED BY '$XTRABACKUP_PASSWORD';
+CREATE USER IF NOT EXISTS 'xtrabackup'@'127.0.0.1' IDENTIFIED BY '$XTRABACKUP_PASSWORD';
 GRANT RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'127.0.0.1';
-CREATE USER 'clustercheck'@'127.0.0.1' IDENTIFIED BY '$CLUSTERCHECK_PASSWORD';
+CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost' IDENTIFIED BY '$XTRABACKUP_PASSWORD';
+GRANT RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'localhost';
+CREATE USER IF NOT EXISTS 'clustercheck'@'127.0.0.1' IDENTIFIED BY '$CLUSTERCHECK_PASSWORD';
 GRANT PROCESS ON *.* TO 'clustercheck'@'127.0.0.1';
+CREATE USER IF NOT EXISTS 'clustercheck'@'localhost' IDENTIFIED BY '$CLUSTERCHECK_PASSWORD';
+GRANT PROCESS ON *.* TO 'clustercheck'@'localhost';
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'%';
 UPDATE mysql.user SET Password=PASSWORD('$MYSQL_ROOT_PASSWORD') WHERE User='root';
 EOF
@@ -83,7 +100,7 @@ EOF
 			fi
 
 			if [ "$MYSQL_USER" -a "$MYSQL_PASSWORD" ]; then
-				echo "CREATE USER '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD' ;" >> /tmp/bootstrap.sql
+				echo "CREATE USER IF NOT EXISTS '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD' ;" >> /tmp/bootstrap.sql
 				if [ "$MYSQL_DATABASE" ]; then
 					echo "GRANT ALL ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'%' ;" >> /tmp/bootstrap.sql
 				fi
@@ -92,8 +109,6 @@ EOF
 
 			MYSQL_MODE_ARGS+=" --init-file=/tmp/bootstrap.sql"
 			touch /var/lib/mysql/skip-cluster-bootstrapping
-
-			echo -n "Bootstrapping cluster. "
 		fi
 
 		shift 1
