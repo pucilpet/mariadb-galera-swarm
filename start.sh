@@ -125,11 +125,10 @@ EOF
 			exit 1
 		fi
 		ADDRS="$2"
-		RETRIES=0
 		RESOLVE=0
 		while true; do
 			SEP=""
-            GCOMM=""
+			GCOMM=""
 			for ADDR in ${ADDRS//,/ }; do
 				if [[ "$ADDR" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 					GCOMM+="$SEP$ADDR"
@@ -149,7 +148,6 @@ EOF
 			# by `docker service update <service>` or on a full cluster power loss
 			COUNT=$(echo "$GCOMM" | tr ',' "\n" | sort -u | grep -v -e "^$NODE_ADDRESS\$" | wc -l)
 			if [ $RESOLVE -eq 1 -a $COUNT -lt $(($GCOMM_MINIMUM - 1)) ]; then
-				RETRIES=$(($RETRIES + 1))
 				echo "Waiting for at least $GCOMM_MINIMUM IP addresses to resolve..."
 				sleep 3
 			else
