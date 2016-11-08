@@ -5,14 +5,20 @@ compatible with auto-scheduling systems, specifically Docker Swarm Mode (1.12+) 
 However, it could also work with manual scheduling (`docker run`) by specifying the correct
 environment variables.
 
-It takes as a command either "seed" or "node". The "seed" command is used only to initialize a
-new cluster and after initialization and other nodes are joined the "seed" container can be stopped.
+It takes as a command one of the following:
 
-The "node" command takes as a second argument a comma-separated list of IPs or hostnames to resolve
-which are used to build the `--wsrep_cluster_address` option for joining a cluster.
-
-For example, using Docker Swarm Mode the built-in DNS server can be used for automatic cluster member
-address discovery. The same technique works also for Kontena or systems with access to a Consul server.
+ - "seed" - Used only to initialize a new cluster and after initialization and other nodes are joined
+   the "seed" container should be stopped and replaced with a "node" container using the same volume.
+ - "node" - Join an existing cluster. Takes as a second argument a comma-separated list of IPs or
+   hostnames to resolve which are used to build the `--wsrep_cluster_address` option for joining a cluster.
+ - "nowsrep" - Start server with Galera disabled. Useful for maintenance tasks like performing mysql_upgrade
+   and resetting root credentials.
+ - "sleep" - Start the container but not the server. Runs "sleep infinity". Useful just to get volumes
+   initialized or if you want to `docker exec` without the server running.
+ 
+The main feature over the official maraiadb image is that DNS-resolution is used to discover other nodes
+so they don't have to be specified explicitly. Works with any system with DNS-based service discovery such
+as Kontena, Docker Swarm Mode, Consul, etc.
 
 ### Example (Docker 1.12 Swarm Mode)
 
@@ -49,17 +55,17 @@ Additional variables for "node":
    Docker 1.12 HEALTHCHECK feature and also can be used by any other health checking node in the network
    such as HAProxy or Consul.
  - By default the healthcheck is only healthy when Galera state is Synced or Donor so this is a better
-   check that simply connecting to port 3306.
+   check than simply connecting to port 3306.
  - If your container network uses something other than `ethwe*` or `eth0` then you need to specify `NODE_ADDRESS`
    as either the name of the interface to listen on or a grep pattern to match one of the container's IP addresses.
    E.g.: `NODE_ADDRESS='^10.0.1.*'`
- - When using DNS for node address discovery the container entrypoint script will wait up to 60 seconds for
+ - When using DNS for node address discovery the container entrypoint script will wait indefinitely for
    `GCOMM_MINIMUM` IP addresses to resolve before trying to start `mysqld` in case some containers are starting
-   slower than others to increase the chance of a healthy recovery. Scenrios where not enough IPs would resolve
+   slower than others to increase the chance of a healthy recovery. Scenarios where not enough IPs would resolve
    might include:
     - Some nodes may finish pulling container images from remote repositories sooner than others
-    - DNS updates may be slow to propagate one way or another
-    - Others?
+    - Schedulers may not be launching nodes quickly enough
+    - Service discovery systems may be slow to propagate updates via DNS
  - If the file `/usr/local/lib/startup.sh` exists it will be sourced in the start.sh script.
 
 ### Credit
