@@ -11,7 +11,7 @@ It takes as a command one of the following:
    the "seed" container should be stopped and replaced with a "node" container using the same volume.
  - "node" - Join an existing cluster. Takes as a second argument a comma-separated list of IPs or
    hostnames to resolve which are used to build the `--wsrep_cluster_address` option for joining a cluster.
- - "nowsrep" - Start server with Galera disabled. Useful for maintenance tasks like performing mysql_upgrade
+ - "no-galera" - Start server with Galera disabled. Useful for maintenance tasks like performing mysql_upgrade
    and resetting root credentials.
  - "sleep" - Start the container but not the server. Runs "sleep infinity". Useful just to get volumes
    initialized or if you want to `docker exec` without the server running.
