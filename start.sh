@@ -129,6 +129,7 @@ EOF
 		RESOLVE=0
 		while true; do
 			SEP=""
+            GCOMM=""
 			for ADDR in ${ADDRS//,/ }; do
 				if [[ "$ADDR" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 					GCOMM+="$SEP$ADDR"
@@ -146,8 +147,8 @@ EOF
 			# It is possible that containers on other nodes aren't running yet and should be waited on
 			# before trying to start. For example, this occurs when updated container images are being pulled
 			# by `docker service update <service>` or on a full cluster power loss
-			COUNT=$(echo "$GCOMM" | tr ',' "\n" | grep -v -e "^$NODE_ADDRESS\$" | wc -l)
-			if [ $RESOLVE -eq 1 -a $COUNT -lt $(($GCOMM_MINIMUM - 1)) -a $RETRIES -lt 20 ]; then
+			COUNT=$(echo "$GCOMM" | tr ',' "\n" | sort -u | grep -v -e "^$NODE_ADDRESS\$" | wc -l)
+			if [ $RESOLVE -eq 1 -a $COUNT -lt $(($GCOMM_MINIMUM - 1)) ]; then
 				RETRIES=$(($RETRIES + 1))
 				echo "Waiting for at least $GCOMM_MINIMUM IP addresses to resolve..."
 				sleep 3
