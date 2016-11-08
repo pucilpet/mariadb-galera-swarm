@@ -171,7 +171,7 @@ function shutdown () {
 }
 trap shutdown TERM INT
 
-galera-healthcheck -user=clustercheck -password="$CLUSTERCHECK_PASSWORD" -availWhenDonor=false -pidfile=/var/run/galera-healthcheck.pid &
+galera-healthcheck -user=clustercheck -password="$CLUSTERCHECK_PASSWORD" -availWhenDonor=false -pidfile=/var/run/galera-healthcheck.pid >/dev/null &
 gosu mysql mysqld.sh --console \
 	$MYSQL_MODE_ARGS \
 	--wsrep_cluster_name="$CLUSTER_NAME" \

@@ -14,8 +14,8 @@ if ! test -d /var/lib/mysql/mysql && ! mysql_install_db; then
 	echo "${LOG_MESSAGE} it failed :("
 fi
 
-# Get the GTID position if possible
-if ! [[ "$OPT" =~ /--wsrep-new-cluster/ ]]; then
+# Get the GTID position if possible, but skip this step if pc.recovery is enabled
+if ! [[ "$OPT" =~ /--wsrep-new-cluster/ ]] && ! [ -f /var/lib/mysql/gvwstate.dat ]; then
 	echo  "${LOG_MESSAGE} Recovering GTID positon"
 	tmpfile=$(mktemp -t wsrep_recover.XXXXXX)
 	if test -z "$tmpfile" || ! $MYSQLD $OPT --wsrep-recover 2>${tmpfile}; then
