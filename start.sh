@@ -17,7 +17,7 @@ if [ -z "$XTRABACKUP_PASSWORD" ]; then
 	exit 1
 fi
 
-CLUSTERCHECK_PASSWORD=${CLUSTERCHECK_PASSWORD:-$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')}
+SYSTEM_PASSWORD=${SYSTEM_PASSWORD:-$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')}
 CLUSTER_NAME=${CLUSTER_NAME:-cluster}
 GCOMM_MINIMUM=${GCOMM_MINIMUM:-2}
 GCOMM=""
@@ -87,10 +87,10 @@ CREATE USER IF NOT EXISTS 'xtrabackup'@'127.0.0.1' IDENTIFIED BY '$XTRABACKUP_PA
 GRANT RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'127.0.0.1';
 CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost' IDENTIFIED BY '$XTRABACKUP_PASSWORD';
 GRANT RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'localhost';
-CREATE USER IF NOT EXISTS 'clustercheck'@'127.0.0.1' IDENTIFIED BY '$CLUSTERCHECK_PASSWORD';
-GRANT PROCESS ON *.* TO 'clustercheck'@'127.0.0.1';
-CREATE USER IF NOT EXISTS 'clustercheck'@'localhost' IDENTIFIED BY '$CLUSTERCHECK_PASSWORD';
-GRANT PROCESS ON *.* TO 'clustercheck'@'localhost';
+CREATE USER IF NOT EXISTS 'system'@'127.0.0.1' IDENTIFIED BY '$SYSTEM_PASSWORD';
+GRANT PROCESS,SHUTDOWN ON *.* TO 'system'@'127.0.0.1';
+CREATE USER IF NOT EXISTS 'system'@'localhost' IDENTIFIED BY '$SYSTEM_PASSWORD';
+GRANT PROCESS,SHUTDOWN ON *.* TO 'system'@'localhost';
 CREATE USER IF NOT EXISTS 'root'@'127.0.0.1';
 SET PASSWORD FOR 'root'@'127.0.0.1' = PASSWORD('$MYSQL_ROOT_PASSWORD');
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
@@ -166,12 +166,14 @@ esac
 set +e -m
 
 function shutdown () {
-	echo Shutting down
+	echo Shutting down...
+	mysql -u system -p$SYSTEM_PASSWORD -e 'SHUTDOWN' \
+		&& sleep 20 # PID 1 should already have exited but in case SHUTDOWN command failed go for the kill
 	test -s /var/run/mysql/mysqld.pid && kill -TERM $(cat /var/run/mysql/mysqld.pid)
 }
 trap shutdown TERM INT
 
-galera-healthcheck -user=clustercheck -password="$CLUSTERCHECK_PASSWORD" -availWhenDonor=false -pidfile=/var/run/galera-healthcheck.pid >/dev/null &
+galera-healthcheck -user=system -password="$SYSTEM_PASSWORD" -availWhenDonor=false -pidfile=/var/run/galera-healthcheck.pid >/dev/null &
 gosu mysql mysqld.sh --console \
 	$MYSQL_MODE_ARGS \
 	--wsrep_cluster_name="$CLUSTER_NAME" \
@@ -182,6 +184,8 @@ gosu mysql mysqld.sh --console \
 	"$@" 2>&1 &
 wait $!
 RC=$?
+
+echo "MariaDB exited with return code ($RC)"
 
 test -s /var/run/galera-healthcheck.pid && kill $(cat /var/run/galera-healthcheck.pid)
 

@@ -36,7 +36,7 @@ then
     # gvwstate.dat indicates that wsrep_cluster_status was previously Primary so let pc.recovery do it's thing.
 	echo "${LOG_MESSAGE} gvwstate.dat file found, relying on pc.recovery to restore cluster state..."
 
-elif test -f /var/lib/mysql/grastate.dat && ! grep -qF 'seqno: -1' /var/lib/mysql/grastate.dat
+elif test -f /var/lib/mysql/grastate.dat && ! grep -qe 'seqno:\s*-1' /var/lib/mysql/grastate.dat
 then
 	# valid grastate.dat should be recoverable without recovering GTID
 	echo "${LOG_MESSAGE} grastate.dat file found with valid seqno, relying on state data for recovery..."
