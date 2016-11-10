@@ -12,12 +12,6 @@ if [ "$TRACE" = "y" ]; then
 	set -x
 fi
 
-SYSTEM_PASSWORD=${SYSTEM_PASSWORD:-$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')}
-CLUSTER_NAME=${CLUSTER_NAME:-cluster}
-GCOMM_MINIMUM=${GCOMM_MINIMUM:-2}
-GCOMM=""
-MYSQL_MODE_ARGS=""
-
 #
 # Resolve node address
 #
@@ -40,17 +34,13 @@ if ! [[ "$NODE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	exit 1
 fi
 
-# Allow for easily adding more startup scripts
-if [ -f /usr/local/lib/startup.sh ]; then
-	source /usr/local/lib/startup.sh
+# System password defaults to hash of xtrabackup password
+if test -n "$XTRABACKUP_PASSWORD"; then
+	SYSTEM_PASSWORD=${SYSTEM_PASSWORD:-$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')}
 fi
 
 #
-# Start modes:
-#  - sleep - Useful for running the container without MySQL, e.g. for running innobackupex restore
-#  - no-galera - Useful for running mysql_upgrade
-#  - seed - Start a new cluster - run only once and use 'node' after cluster is started
-#  - node - Join an existing cluster
+# Utility modes
 #
 case "$1" in
 	sleep)
@@ -70,9 +60,28 @@ case "$1" in
 	bash)
 		exec /bin/bash "$@"
 		;;
-	seed)
-		[ -z "$XTRABACKUP_PASSWORD" ] || { echo "XTRABACKUP_PASSWORD not set"; exit 1; }
+esac
 
+# XTRABACKUP_PASSWORD required from this point forward
+[ -z "$XTRABACKUP_PASSWORD" ] && { echo "XTRABACKUP_PASSWORD not set"; exit 1; }
+[ -z "$SYSTEM_PASSWORD" ] && SYSTEM_PASSWORD=$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')
+CLUSTER_NAME=${CLUSTER_NAME:-cluster}
+GCOMM_MINIMUM=${GCOMM_MINIMUM:-2}
+GCOMM=""
+MYSQL_MODE_ARGS=""
+
+# Allow for easily adding more startup scripts
+if [ -f /usr/local/lib/startup.sh ]; then
+	source /usr/local/lib/startup.sh
+fi
+
+#
+# Start modes:
+#  - seed - Start a new cluster - run only once and use 'node' after cluster is started
+#  - node - Join an existing cluster
+#
+case "$1" in
+	seed)
 		MYSQL_MODE_ARGS+=" --wsrep-on=ON --wsrep-new-cluster"
 		# bootstrapping
 		if [ ! -f /var/lib/mysql/skip-cluster-bootstrapping ]; then
@@ -119,8 +128,6 @@ EOF
 		echo "Starting seed node"
 		;;
 	node)
-		[ -z "$XTRABACKUP_PASSWORD" ] || { echo "XTRABACKUP_PASSWORD not set"; exit 1; }
-
 		MYSQL_MODE_ARGS+=" --wsrep-on=ON"
 		if [ -z "$2" ]; then
 			echo "Missing master node address"
