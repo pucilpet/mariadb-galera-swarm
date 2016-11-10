@@ -72,6 +72,8 @@ Additional variables for "node":
     - Schedulers may not be launching nodes quickly enough
     - Service discovery systems may be slow to propagate updates via DNS
  - If the file `/usr/local/lib/startup.sh` exists it will be sourced in the start.sh script.
+ - If you need to promote a running node to be a new "Primary Component" you can run the following command to do so:
+       $ docker exec -i <container> mysql -p /primary-component.sql
 
 ### Credit
 
@@ -91,3 +93,4 @@ Additional variables for "node":
  - Completely rewrite mysqld.sh startup script for proper cluster bootstrapping and recovery.
  - Add sourcing of /usr/local/lib/startup.sh for easier entrypoint extension.
  - Add 'sleep', 'no-galera' and 'bash' modes for easier maintenance/debugging.
+ - Various other minor improvements.
