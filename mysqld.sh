@@ -23,6 +23,7 @@ function check_nodes {
 	for node in ${1//,/ }; do
 		[ "$node" = "$2" ] && continue
 		if curl -f -o - http://$node:8081 && echo; then
+			echo "${LOG_MESSAGE} Node at $node is healthy!"
 			return 0
 		fi
 	done
@@ -34,6 +35,14 @@ then
 	# --wsrep-new-cluster is used for the "seed" node so no recovery used
 	echo "${LOG_MESSAGE} Starting a new cluster..."
 	do_install_db
+
+elif test -f /var/lib/mysql/wsrep-new-cluster
+then
+	# flag file indicating new cluster needed, possibly easier than using "seed" in some cases
+	echo "${LOG_MESSAGE} Starting a new cluster (because of flag file)..."
+	rm -f /var/lib/mysql/wsrep-new-cluster
+	do_install_db
+	START="--wsrep-new-cluster"
 
 elif ! test -f /var/lib/mysql/ibdata1
 then
@@ -71,7 +80,6 @@ else
 		echo "${LOG_MESSAGE} Attempting to recover GTID positon..."
 
 		tmpfile=$(mktemp -t wsrep_recover.XXXXXX)
-		test -n "$tmpfile" || { echo "Could not create temp file for wsrep_recover..."; exit 1; }
 		mysqld  --wsrep-on=ON \
 				--wsrep_sst_method=skip \
 				--wsrep_cluster_address=gcomm:// \

@@ -52,6 +52,9 @@ Additional variables for "node":
  - Tries to handle as many recovery scenarios as possible including full cluster ungraceful shutdown by
    using --wsrep-recovery and inter-node communication to discover the optimal node for bootstrapping
    a new cluster when the old one cannot be recovered.
+ - If you need to perform manual recovery of a previously healthy cluster you can use "node" mode
+   but touch a file at `/var/lib/mysql/wsrep-new-cluster` to force a node to bootstrap a new cluster
+   and bypass the automatic recovery steps.
  - XtraBackup is used for state transfer and MariaDb now supports `pc.recovery` so the correct node should
    automatically become master in the case of all nodes being grgacefully shutdown.
  - A go server runs within the cluster exposing an http service for intelligent health checking.
