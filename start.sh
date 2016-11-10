@@ -12,11 +12,6 @@ if [ "$TRACE" = "y" ]; then
 	set -x
 fi
 
-if [ -z "$XTRABACKUP_PASSWORD" ]; then
-	echo "XTRABACKUP_PASSWORD not set"
-	exit 1
-fi
-
 SYSTEM_PASSWORD=${SYSTEM_PASSWORD:-$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')}
 CLUSTER_NAME=${CLUSTER_NAME:-cluster}
 GCOMM_MINIMUM=${GCOMM_MINIMUM:-2}
@@ -72,7 +67,12 @@ case "$1" in
 			"$@" 2>&1
 		exit
 		;;
+	bash)
+		exec /bin/bash "$@"
+		;;
 	seed)
+		[ -z "$XTRABACKUP_PASSWORD" ] || { echo "XTRABACKUP_PASSWORD not set"; exit 1; }
+
 		MYSQL_MODE_ARGS+=" --wsrep-on=ON --wsrep-new-cluster"
 		# bootstrapping
 		if [ ! -f /var/lib/mysql/skip-cluster-bootstrapping ]; then
@@ -119,6 +119,8 @@ EOF
 		echo "Starting seed node"
 		;;
 	node)
+		[ -z "$XTRABACKUP_PASSWORD" ] || { echo "XTRABACKUP_PASSWORD not set"; exit 1; }
+
 		MYSQL_MODE_ARGS+=" --wsrep-on=ON"
 		if [ -z "$2" ]; then
 			echo "Missing master node address"
@@ -158,7 +160,7 @@ EOF
 		echo "Starting node, connecting to gcomm://$GCOMM"
 		;;
 	*)
-		echo "sleep|no-galera|seed|node <othernode>,..."
+		echo "sleep|no-galera|bash|seed|node <othernode>,..."
 		exit 1
 esac
 
@@ -173,7 +175,22 @@ function shutdown () {
 }
 trap shutdown TERM INT
 
-galera-healthcheck -user=system -password="$SYSTEM_PASSWORD" -availWhenDonor=false -pidfile=/var/run/galera-healthcheck.pid >/dev/null &
+# Port 8080 only reports healthy when ready to serve clients
+# Use this one for load balancer health checks
+galera-healthcheck -user=system -password="$SYSTEM_PASSWORD" \
+	-port=8080
+	-availWhenDonor=false \
+	-availableWhenReadOnly=false \
+	-pidfile=/var/run/galera-healthcheck-1.pid >/dev/null &
+
+# Port 8081 reports healthy as long as the server is synced or donor/desynced state
+# Use this one to help other nodes determine cluster state before launching server
+galera-healthcheck -user=system -password="$SYSTEM_PASSWORD" \
+	-port=8081
+	-availWhenDonor=true \
+	-availableWhenReadOnly=true \
+	-pidfile=/var/run/galera-healthcheck-2.pid >/dev/null &
+
 gosu mysql mysqld.sh --console \
 	$MYSQL_MODE_ARGS \
 	--wsrep_cluster_name="$CLUSTER_NAME" \
@@ -187,6 +204,7 @@ RC=$?
 
 echo "MariaDB exited with return code ($RC)"
 
-test -s /var/run/galera-healthcheck.pid && kill $(cat /var/run/galera-healthcheck.pid)
+test -s /var/run/galera-healthcheck-1.pid && kill $(cat /var/run/galera-healthcheck-1.pid)
+test -s /var/run/galera-healthcheck-2.pid && kill $(cat /var/run/galera-healthcheck-2.pid)
 
 exit $RC

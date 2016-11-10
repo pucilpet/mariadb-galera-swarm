@@ -1,7 +1,7 @@
 # MariaDb Galera Cluster
 
 This Docker container is based on the official Docker `mariadb:10.1` image and is designed to be
-compatible with auto-scheduling systems, specifically Docker Swarm Mode (1.12+) and Kontena (1.11).
+compatible with auto-scheduling systems, specifically Docker Swarm Mode (1.12+) and Kontena.
 However, it could also work with manual scheduling (`docker run`) by specifying the correct
 environment variables.
 
@@ -49,13 +49,15 @@ Additional variables for "node":
 
 ### More Info
 
+ - Tries to handle as many recovery scenarios as possible including full cluster ungraceful shutdown by
+   using --wsrep-recovery and inter-node communication to discover the optimal node for bootstrapping
+   a new cluster when the old one cannot be recovered.
  - XtraBackup is used for state transfer and MariaDb now supports `pc.recovery` so the correct node should
-   automatically become master in the case of all nodes being down.
- - A go server runs within the cluster exposing an http service on port 8080 which is used by the
-   Docker 1.12 HEALTHCHECK feature and also can be used by any other health checking node in the network
-   such as HAProxy or Consul.
- - By default the healthcheck is only healthy when Galera state is Synced or Donor so this is a better
-   check than simply connecting to port 3306.
+   automatically become master in the case of all nodes being grgacefully shutdown.
+ - A go server runs within the cluster exposing an http service for intelligent health checking.
+    - Port 8080 is used by the Docker 1.12 HEALTHCHECK feature and also can be used by any other health checking
+      node in the network such as HAProxy or Consul to determine readable/writeable nodes.
+    - Port 8081 is used to detemine cluster status
  - If your container network uses something other than `ethwe*` or `eth0` then you need to specify `NODE_ADDRESS`
    as either the name of the interface to listen on or a grep pattern to match one of the container's IP addresses.
    E.g.: `NODE_ADDRESS='^10.0.1.*'`
@@ -81,8 +83,8 @@ Additional variables for "node":
  - Support any adapter/IP by specifying `NODE_ADDRESS=<interface|pattern>`.
  - Fix running mysqld as root using `gosu mysql mysqld.sh`.
  - Add support for HEALTHCHECK for Docker 1.12.
- - Delay starting mysqld until at least one other node is up when using DNS resolution for node list.
+ - Delay starting mysqld until at least GCOMM_MINIMUM total nodes are up when using DNS resolution for node list.
  - Bundle galera-healthcheck binary.
- - Fix bugs in mysqld startup.
+ - Completely rewrite mysqld.sh startup script for proper cluster bootstrapping and recovery.
  - Add sourcing of /usr/local/lib/startup.sh for easier entrypoint extension.
- - Add 'sleep' and 'no-galera' modes for easier maintenance.
+ - Add 'sleep', 'no-galera' and 'bash' modes for easier maintenance/debugging.
