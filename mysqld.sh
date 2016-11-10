@@ -4,7 +4,7 @@
 # or create a new one if the old one cannot be joined
 #
 
-LOG_MESSAGE="Docker startscript: "
+LOG_MESSAGE="mysqld.sh:"
 OPT="$@"
 START=""
 
@@ -22,7 +22,7 @@ function do_install_db {
 function check_nodes {
 	for node in ${1//,/ }; do
 		[ "$node" = "$2" ] && continue
-		if curl -f -o - http://$node:8081 && echo; then
+		if curl -f -s -o - http://$node:8081 && echo; then
 			echo "${LOG_MESSAGE} Node at $node is healthy!"
 			return 0
 		fi
@@ -65,13 +65,18 @@ else
 	elif grep -q '00000000-0000-0000-0000-000000000000' /var/lib/mysql/grastate.dat; then
 		echo "${LOG_MESSAGE} uuid is not known..."
 	else
-		uuid=$(sed -n 's/^uuid:\s*//' /var/lib/mysql/grastate.dat)
-		seqno=$(sed -n 's/^seqno:\s*//' /var/lib/mysql/grastate.dat)
+		uuid=$(awk '/^uuid:/{print $2}' /var/lib/mysql/grastate.dat)
+		seqno=$(awk '/^seqno:/{print $2}' /var/lib/mysql/grastate.dat)
 		if [ "$seqno" = "-1" ]; then
 			echo "${LOG_MESSAGE} uuid is known but seqno is not..."
-		else
+		elif [ -n "$uuid" ] && [ -n "$seqno" ]; then
 			POSITION="$uuid:$seqno"
 			echo "${LOG_MESSAGE} Recovered position from grastate.dat: $POSITION"
+		else
+			echo "${LOG_MESSAGE} The grastate.dat file appears to be corrupt:"
+			echo "##########################"
+			cat /var/lib/mysql/grastate.dat
+			echo "##########################"
 		fi
 	fi
 
@@ -109,13 +114,12 @@ else
 
 	# Communicate to other nodes to find if there is a Primary Component and if not
 	# figure out who has the highest recovery position to be the bootstrapper
-	NODE_ADDRESS=$(sed -E 's#.*--wsrep_node_address=([0-9.]+):4567.*#\1#' <<< "$OPT")
-	GCOMM=$(sed -E 's#.*gcomm://([0-9.,]+)#\1#' <<< "$OPT")
+	NODE_ADDRESS=$(sed -E 's#.*--wsrep_node_address=([0-9\.]+):4567.*#\1#' <<< "$OPT")
+	GCOMM=$(sed -E 's#.*gcomm://([0-9\.,]+)\s+.*#\1#' <<< "$OPT")
 	LISTEN_PORT=3309
-
 	# Use the galera-healthcheck server to determine if a healthy node exists
 	# Try multiple times since we really don't want to start a new cluster...
-	for i in $(seq 1 6); do
+	for i in {1..6}; do
 		if check_nodes $GCOMM $NODE_ADDRESS
 		then
 			echo "${LOG_MESSAGE} Found a healthy node! Attempting to join..."
@@ -138,7 +142,7 @@ else
 		PID_SERVER=$!
 
 		# Send uuid:seqno to other nodes - every 5 seconds for 60 seconds
-		while true; do
+		for i in {1..7}; do
 			for node in ${GCOMM//,/ }; do
 				[ "$node" = "$NODE_ADDRESS" ] && continue
 				socat - TCP:$node:$LISTEN_PORT <<< "$NODE_ADDRESS:$POSITION"
@@ -162,7 +166,7 @@ else
 		then
 			# We now have a collection of <ip>:<uuid>:<seqno> for all running nodes.
 			MY_SEQNO=${POSITION#*:}
-			BEST_SEQNO=$(awk -F: '{print $3}' | sort -nu | tail -n 1)
+			BEST_SEQNO=$(<$tmpfile awk -F: '{print $3}' | sort -nu | tail -n 1)
 			if [ "$MY_SEQNO" -gt "$BEST_SEQNO" ]; then
 				# This node is newer than all the others, start a new cluster
 				START="--wsrep-new-cluster"
@@ -171,8 +175,8 @@ else
 				START="--wsrep_start_position=$POSITION"
 			else
 				# This and another node or nodes are the newest, lowest IP wins
-				LOWEST_IP=$(awk -F: "/:$BEST_SEQNO$/{print \$1}" | sort -u | head -n 1)
-				if [ "$NODE_ADDRESS" < "$LOWEST_IP" ]; then
+				LOWEST_IP=$(<$tmpfile awk -F: "/:$BEST_SEQNO$/{print \$1}" | sort -u | head -n 1)
+				if [ "$NODE_ADDRESS" \< "$LOWEST_IP" ]; then
 					START="--wsrep-new-cluster"
 				else
 					START="--wsrep_start_position=$POSITION"

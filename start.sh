@@ -3,7 +3,8 @@
 # Exit on errors but report line number
 set -e
 err_report() {
-    echo "start.sh: Error on line $1"
+	echo "start.sh: Trapped error on line $1"
+	exit
 }
 trap 'err_report $LINENO' ERR
 
@@ -58,8 +59,15 @@ case "$1" in
 		exit
 		;;
 	bash)
-		exec /bin/bash "$@"
+		shift 1
+		/bin/bash "$@"
+		exit
 		;;
+	seed|node)
+		;;
+	*)
+		echo "sleep|no-galera|bash|seed|node <othernode>,..."
+		exit 1
 esac
 
 # XTRABACKUP_PASSWORD required from this point forward
@@ -75,23 +83,17 @@ if [ -f /usr/local/lib/startup.sh ]; then
 	source /usr/local/lib/startup.sh
 fi
 
-#
-# Start modes:
-#  - seed - Start a new cluster - run only once and use 'node' after cluster is started
-#  - node - Join an existing cluster
-#
-case "$1" in
-	seed)
-		MYSQL_MODE_ARGS+=" --wsrep-on=ON --wsrep-new-cluster"
-		# bootstrapping
-		if [ ! -f /var/lib/mysql/skip-cluster-bootstrapping ]; then
-			echo "Bootstrapping cluster..."
-			if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
-				MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
-				echo "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD"
-			fi
+# Generate init file to create required users
+if   ( [ "$1" = "node" ] && [ -f /var/lib/mysql/force-cluster-bootstrapping ] ) \
+  || ( [ "$1" = "seed" ] && ! [ -f /var/lib/mysql/skip-cluster-bootstrapping ] )
+then
+	echo "Generating cluster bootstrap script..."
+	if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
+		MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
+		echo "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD"
+	fi
 
-			cat >/tmp/bootstrap.sql <<EOF
+	cat >/tmp/bootstrap.sql <<EOF
 CREATE USER IF NOT EXISTS 'xtrabackup'@'127.0.0.1' IDENTIFIED BY '$XTRABACKUP_PASSWORD';
 GRANT RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'127.0.0.1';
 CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost' IDENTIFIED BY '$XTRABACKUP_PASSWORD';
@@ -108,22 +110,31 @@ SET PASSWORD FOR 'root'@'localhost' = PASSWORD('$MYSQL_ROOT_PASSWORD');
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;
 EOF
 
-			if [ "$MYSQL_DATABASE" ]; then
-				echo "CREATE DATABASE IF NOT EXISTS \`$MYSQL_DATABASE\` ;" >> /tmp/bootstrap.sql
-			fi
+	if [ "$MYSQL_DATABASE" ]; then
+		echo "CREATE DATABASE IF NOT EXISTS \`$MYSQL_DATABASE\` ;" >> /tmp/bootstrap.sql
+	fi
 
-			if [ "$MYSQL_USER" -a "$MYSQL_PASSWORD" ]; then
-				echo "CREATE USER IF NOT EXISTS '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD' ;" >> /tmp/bootstrap.sql
-				if [ "$MYSQL_DATABASE" ]; then
-					echo "GRANT ALL ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'%' ;" >> /tmp/bootstrap.sql
-				fi
-			fi
-			echo "FLUSH PRIVILEGES;" >> /tmp/bootstrap.sql
-
-			MYSQL_MODE_ARGS+=" --init-file=/tmp/bootstrap.sql"
-			touch /var/lib/mysql/skip-cluster-bootstrapping
+	if [ "$MYSQL_USER" -a "$MYSQL_PASSWORD" ]; then
+		echo "CREATE USER IF NOT EXISTS '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD' ;" >> /tmp/bootstrap.sql
+		if [ "$MYSQL_DATABASE" ]; then
+			echo "GRANT ALL ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'%' ;" >> /tmp/bootstrap.sql
 		fi
+	fi
+	echo "FLUSH PRIVILEGES;" >> /tmp/bootstrap.sql
 
+	MYSQL_MODE_ARGS+=" --init-file=/tmp/bootstrap.sql"
+	rm -f /var/lib/mysql/force-cluster-bootstrapping
+	touch /var/lib/mysql/skip-cluster-bootstrapping
+fi
+
+#
+# Start modes:
+#  - seed - Start a new cluster - run only once and use 'node' after cluster is started
+#  - node - Join an existing cluster
+#
+case "$1" in
+	seed)
+		MYSQL_MODE_ARGS+=" --wsrep-on=ON --wsrep-new-cluster"
 		shift 1
 		echo "Starting seed node"
 		;;
@@ -135,6 +146,7 @@ EOF
 		fi
 		ADDRS="$2"
 		RESOLVE=0
+		SLEEPS=0
 		while true; do
 			SEP=""
 			GCOMM=""
@@ -156,62 +168,68 @@ EOF
 			# before trying to start. For example, this occurs when updated container images are being pulled
 			# by `docker service update <service>` or on a full cluster power loss
 			COUNT=$(echo "$GCOMM" | tr ',' "\n" | sort -u | grep -v -e "^$NODE_ADDRESS\$" | wc -l)
-			if [ $RESOLVE -eq 1 -a $COUNT -lt $(($GCOMM_MINIMUM - 1)) ]; then
+			if [ $RESOLVE -eq 1 ] && [ $COUNT -lt $(($GCOMM_MINIMUM - 1)) ]; then
 				echo "Waiting for at least $GCOMM_MINIMUM IP addresses to resolve..."
+				SLEEPS=$((SLEEPS + 1))
 				sleep 3
 			else
 				break
+			fi
+
+			# After 90 seconds reduce GCOMM_MINIMUM
+			if [ $SLEEPS -ge 30 ]; then
+				SLEEPS=0
+				GCOMM_MINIMUM=$((GCOMM_MINIMUM - 1))
+				echo "Reducing GCOMM_MINIMUM to $GCOMM_MINIMUM"
 			fi
 		done
 		shift 2
 		echo "Starting node, connecting to gcomm://$GCOMM"
 		;;
-	*)
-		echo "sleep|no-galera|bash|seed|node <othernode>,..."
-		exit 1
 esac
 
 # start processes
 set +e -m
 
 function shutdown () {
-	echo Shutting down...
-	mysql -u system -p$SYSTEM_PASSWORD -e 'SHUTDOWN' \
-		&& sleep 20 # PID 1 should already have exited but in case SHUTDOWN command failed go for the kill
-	test -s /var/run/mysql/mysqld.pid && kill -TERM $(cat /var/run/mysql/mysqld.pid)
+	echo "Received TERM|INT signal. Shutting down..."
+	mysql -u system -h 127.0.0.1 -p$SYSTEM_PASSWORD -e 'SHUTDOWN'
+	# Since this is docker, expect that if we don't shut down quickly enough we will get killed anyway
 }
 trap shutdown TERM INT
 
 # Port 8080 only reports healthy when ready to serve clients
 # Use this one for load balancer health checks
 galera-healthcheck -user=system -password="$SYSTEM_PASSWORD" \
-	-port=8080
+	-port=8080 \
 	-availWhenDonor=false \
-	-availableWhenReadOnly=false \
+	-availWhenReadOnly=false \
 	-pidfile=/var/run/galera-healthcheck-1.pid >/dev/null &
 
 # Port 8081 reports healthy as long as the server is synced or donor/desynced state
 # Use this one to help other nodes determine cluster state before launching server
 galera-healthcheck -user=system -password="$SYSTEM_PASSWORD" \
-	-port=8081
+	-port=8081 \
 	-availWhenDonor=true \
-	-availableWhenReadOnly=true \
+	-availWhenReadOnly=true \
 	-pidfile=/var/run/galera-healthcheck-2.pid >/dev/null &
 
 gosu mysql mysqld.sh --console \
 	$MYSQL_MODE_ARGS \
-	--wsrep_cluster_name="$CLUSTER_NAME" \
-	--wsrep_cluster_address="gcomm://$GCOMM" \
-	--wsrep_node_address="$NODE_ADDRESS:4567" \
-	--wsrep_sst_auth="xtrabackup:$XTRABACKUP_PASSWORD" \
-	--default-time-zone="+00:00" \
+	--wsrep_cluster_name=$CLUSTER_NAME \
+	--wsrep_cluster_address=gcomm://$GCOMM \
+	--wsrep_node_address=$NODE_ADDRESS:4567 \
+	--wsrep_sst_auth=xtrabackup:$XTRABACKUP_PASSWORD \
+	--default-time-zone=+00:00 \
 	"$@" 2>&1 &
-wait $!
+wait $! || true
 RC=$?
 
 echo "MariaDB exited with return code ($RC)"
+test -f /var/lib/mysql/grastate.dat && cat /var/lib/mysql/grastate.dat
 
 test -s /var/run/galera-healthcheck-1.pid && kill $(cat /var/run/galera-healthcheck-1.pid)
 test -s /var/run/galera-healthcheck-2.pid && kill $(cat /var/run/galera-healthcheck-2.pid)
 
+echo "Goodbye"
 exit $RC
