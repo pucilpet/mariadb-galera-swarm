@@ -168,6 +168,14 @@ else
 			if check_nodes $GCOMM $NODE_ADDRESS; then
 				break
 			fi
+
+			# Merge in any nodes we have received data from so that we will also send data to them
+			if [[ -s $tmpfile ]]; then
+				_GCOMM="$GCOMM,$(<$tmpfile awk -F: '/^seqno:/{print $2}' | sort -u | paste -sd ',')"
+				GCOMM=$(<<<"${GCOMM%%,}" sed 's/,\+/,/g' | tr ',' '\n' | sort -u | paste -sd ',')
+				OPT=$(<<<"$OPT" sed -E "s#gcomm://[0-9\\.,]+#gcomm://$GCOMM#")
+			fi
+
 			if [[ $i -eq 24 ]]; then
 				echo "${LOG_MESSAGE} Could not communicate with at least $EXPECT_NODES other nodes and no nodes are up..."
 				if [[ $EXPECT_NODES -gt 1 ]]; then
