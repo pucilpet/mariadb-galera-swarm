@@ -83,6 +83,9 @@ else
 		rm -f $tmpfile
 	fi
 
+	NODE_ADDRESS=$(<<<$OPT sed -E 's#.*--wsrep_node_address=([0-9\.]+):4567.*#\1#')
+	GCOMM=$(<<<$OPT sed -E 's#.*gcomm://([0-9\.,]+)\s+.*#\1#')
+
 	if [[ -f /var/lib/mysql/wsrep-new-cluster ]]
 	then
 		# Flag file indicating new cluster needed, possibly easier than using "seed" in some cases
@@ -108,22 +111,18 @@ else
 		echo "${LOG_MESSAGE} "
 		exit 1
 
+	elif check_nodes $GCOMM $NODE_ADDRESS
+	then
+		# Use the galera-healthcheck server to determine if a healthy node exists
+		echo "${LOG_MESSAGE} Found a healthy node! Attempting to join..."
+		START="--wsrep_start_position=$POSITION"
+
 	else
 		# Communicate to other nodes to find if there is a Primary Component and if not
 		# figure out who has the highest recovery position to be the bootstrapper
-		NODE_ADDRESS=$(<<<$OPT sed -E 's#.*--wsrep_node_address=([0-9\.]+):4567.*#\1#')
-		GCOMM=$(<<<$OPT sed -E 's#.*gcomm://([0-9\.,]+)\s+.*#\1#')
 		LISTEN_PORT=3309
-
-		# Use the galera-healthcheck server to determine if a healthy node exists
-		if check_nodes $GCOMM $NODE_ADDRESS
-		then
-			echo "${LOG_MESSAGE} Found a healthy node! Attempting to join..."
-			START="--wsrep_start_position=$POSITION"
-		fi
-
 		EXPECT_NODES=3 # Ideally we have a three-node cluster. This will be adjusted down to 2 later
-		VIEW_ID=''
+
 		if [[ -f /var/lib/mysql/gvwstate.dat ]]
 		then
 			# gvwstate.dat is only useful if all nodes have the same view so we will check
@@ -165,7 +164,12 @@ else
 				echo "${LOG_MESSAGE} Completed communication with $EXPECT_NODES other nodes."
 				break
 			fi
+
+			# Check for a node coming up while we're waiting
 			if check_nodes $GCOMM $NODE_ADDRESS; then
+				echo "${LOG_MESSAGE} Found a healthy node, attempting to join..."
+				START="--wsrep_start_position=$POSITION"
+				[[ -n $VIEW_ID ]] && rm -f /var/lib/mysql/gvwstate.dat
 				break
 			fi
 
@@ -196,15 +200,9 @@ else
 		#   seqno:<ip>:<uuid>:<seqno>
 		#   view:<ip>:<view_id>
 
-		if check_nodes $GCOMM $NODE_ADDRESS
+		if [[ -n $START ]]
 		then
-			# Check once more for healthy nodes in case one came up while we were waiting
-			echo "${LOG_MESSAGE} Found a healthy node, attempting to join..."
-			START="--wsrep_start_position=$POSITION"
-			if test -f /var/lib/mysql/gvwstate.dat; then
-				rm -f /var/lib/mysql/gvwstate.dat
-				echo "${LOG_MESSAGE} Deleted gvwstate.dat"
-			fi
+			# Do nothing, we already know what to do
 
 		elif ! [[ -s $tmpfile ]]
 		then
@@ -218,10 +216,10 @@ else
 			NUM_VIEWS=$(<$tmpfile awk -F: "BEGIN{print \"$VIEW_ID\"} /^view:/{print \$3}" | sort -u | wc -l)
 			if [ $NUM_VIEWS -eq 1 ]
 			then
-				echo "${LOG_MESSAGE} Cluster has one view, checking presence of all members..."
 				LOCAL_MEMBERS=$(grep '^member:' /var/lib/mysql/gvwstate.dat | wc -l)
 				TOTAL_MEMBERS=$(grep '^view:' $tmpfile | sort -u | wc -l)
 				TOTAL_MEMBERS=$((TOTAL_MEMBERS + 1)) # Add 1 for self
+				echo "${LOG_MESSAGE} Cluster has consistent view, checking presence of all $LOCAL_MEMBERS members..."
 				if [[ $LOCAL_MEMBERS -eq $TOTAL_MEMBERS ]]; then
 					# Entire cluster was shut down and restarted at once, will restore old Primary Component
 					echo "${LOG_MESSAGE} gvwstate.dat file appears valid on all nodes"
@@ -231,10 +229,11 @@ else
 						START="--wsrep_start_position=$POSITION"
 					else
 						echo "${LOG_MESSAGE} Will not use gvwstate because mis-matching seqnos would cause SST"
+						rm /var/lib/mysql/gvwstate.dat
 					fi
 				else
 					# Not all members are present so PC cannot be restored
-					echo "${LOG_MESSAGE} Not all members are present"
+					echo "${LOG_MESSAGE} Not all members have gvwstate.dat file or are present"
 					rm /var/lib/mysql/gvwstate.dat
 				fi
 			else
