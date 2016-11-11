@@ -217,7 +217,7 @@ else
 		then
 			# Otherwise we will start a new Primary Component with the best node
 			MY_SEQNO=${POSITION#*:}
-			BEST_SEQNO=$(<$tmpfile awk -F: '/^seqno:{print $4}' | sort -nu | tail -n 1)
+			BEST_SEQNO=$(<$tmpfile awk -F: '/^seqno:/{print $4}' | sort -nu | tail -n 1)
 			if [ "$MY_SEQNO" -gt "$BEST_SEQNO" ]; then
 				# This node is newer than all the others, start a new cluster
 				START="--wsrep-new-cluster"
