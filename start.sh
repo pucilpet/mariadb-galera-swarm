@@ -34,6 +34,8 @@ if ! [[ "$NODE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	echo "Could not determine NODE_ADDRESS: $NODE_ADDRESS"
 	exit 1
 fi
+echo "---===--- MariaDB Galera Start Script ---===---"
+echo "Got NODE_ADDRESS=$NODE_ADDRESS"
 
 # System password defaults to hash of xtrabackup password
 if test -n "$XTRABACKUP_PASSWORD"; then

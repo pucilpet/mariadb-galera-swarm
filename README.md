@@ -32,7 +32,7 @@ as Kontena, Docker Swarm Mode, Consul, etc.
 ### Environment Variables
 
  - `XTRABACKUP_PASSWORD` (required)
- - `CLUSTERCHECK_PASSWORD` (optional - defaults to hash of `XTRABACKUP_PASSWORD`)
+ - `SYSTEM_PASSWORD` (optional - defaults to hash of `XTRABACKUP_PASSWORD`)
  - `CLUSTER_NAME` (optional)
  - `NODE_ADDRESS` (optional - defaults to ethwe, then eth0)
 

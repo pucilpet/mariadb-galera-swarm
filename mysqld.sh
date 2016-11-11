@@ -109,32 +109,34 @@ else
 
 	# Communicate to other nodes to find if there is a Primary Component and if not
 	# figure out who has the highest recovery position to be the bootstrapper
-	NODE_ADDRESS=$(sed -E 's#.*--wsrep_node_address=([0-9\.]+):4567.*#\1#' <<< "$OPT")
-	GCOMM=$(sed -E 's#.*gcomm://([0-9\.,]+)\s+.*#\1#' <<< "$OPT")
+	NODE_ADDRESS=$(<<<$OPT sed -E 's#.*--wsrep_node_address=([0-9\.]+):4567.*#\1#')
+	GCOMM=$(<<<$OPT sed -E 's#.*gcomm://([0-9\.,]+)\s+.*#\1#')
 	LISTEN_PORT=3309
 	# Use the galera-healthcheck server to determine if a healthy node exists
-	# Try multiple times since we really don't want to start a new cluster...
-	for i in {1..6}; do
-		if check_nodes $GCOMM $NODE_ADDRESS
-		then
-			echo "${LOG_MESSAGE} Found a healthy node! Attempting to join..."
-			START="--wsrep_start_position=$POSITION"
-			break
-		else
-			echo "${LOG_MESSAGE} Waiting for a healthy node to appear..."
-			sleep 10
-		fi
-	done
+	if check_nodes $GCOMM $NODE_ADDRESS
+	then
+		echo "${LOG_MESSAGE} Found a healthy node! Attempting to join..."
+		START="--wsrep_start_position=$POSITION"
+	fi
 
 	if test -z "$START"
 	then
+		EXPECT_NODES=3
 		VIEW_ID=''
 		if test -f /var/lib/mysql/gvwstate.dat
 		then
 			# gvwstate.dat is only useful if all nodes have the same view so we will check
 			VIEW_ID=$(</var/lib/mysql/gvwstate.dat awk '/^view_id:/{print $2 " " $3 " " $4}')
-			echo "${LOG_MESSAGE} Found view from gvwstate.dat: $VIEW_ID"
+			GVW_MEMBERS=$(</var/lib/mysql/gvwstate.dat grep '^member:' | wc -l)
+			echo "${LOG_MESSAGE} Found view from gvwstate.dat with ($GVW_MEMBERS) members: $VIEW_ID"
+			if [[ $GVW_MEMBERS -gt $EXPECT_NODES ]]; then
+				EXPECT_NODES=$GVW_MEMBERS
+			fi
 		fi
+		if [[ $(<<<${GCOMM//,/ } wc -w) -gt $EXPECT_NODES ]]; then
+			EXPECT_NODES=$(<<<${GCOMM//,/ } wc -w)
+		fi
+		EXPECT_NODES=$((EXPECT_NODES - 1)) # Exclude self
 
 		# If no healthy node is running then collect uuid:seqno from other nodes and
 		# use them to determine which node should do the bootstrap
@@ -144,22 +146,34 @@ else
 		socat -u TCP-LISTEN:$LISTEN_PORT,bind=$NODE_ADDRESS,fork OPEN:$tmpfile,append &
 		PID_SERVER=$!
 
-		# Send uuid:seqno to other nodes - every 5 seconds for 60 seconds
-		for i in {1..7}; do
+		# Send uuid:seqno to other nodes - every 5 seconds for 3 minutes or until all nodes reached
+		SENT_NODES=''
+		for i in {36..0}; do
 			for node in ${GCOMM//,/ }; do
-				[ "$node" = "$NODE_ADDRESS" ] && continue
-				socat - TCP:$node:$LISTEN_PORT <<< "seqno:$NODE_ADDRESS:$POSITION"
+				[[ $node = $NODE_ADDRESS ]] && continue
+				if socat - TCP:$node:$LISTEN_PORT <<< "seqno:$NODE_ADDRESS:$POSITION"; then
+					SENT_NODES="$SENT_NODES,$node"
+				fi
 				if [[ -n $VIEW_ID ]]; then
 					socat - TCP:$node:$LISTEN_PORT <<< "view:$NODE_ADDRESS:$VIEW_ID"
 				fi
 			done
+			if   [[ $EXPECT_NODES -eq $(<$tmpfile awk -F: '/^seqno:/{print $2}' | sort -u | wc -w) ]] \
+			  && [[ $EXPECT_NODES -eq $(<<<$SENT_NODES tr ',' '\n' | sort -u | wc -w) ]]
+			then
+				echo "${LOG_MESSAGE} Completed communication with $EXPECT_NODES other nodes."
+				break
+			fi
+			if check_nodes $GCOMM $NODE_ADDRESS; then
+				break
+			fi
+			if [[ $i -eq 0 ]]; then
+				echo "${LOG_MESSAGE} Could not communicate with at least $EXPECT_NODES other nodes and no nodes are up... Giving up!"
+				break
+			fi
 			sleep 5
-		done &
-		PID_CLIENT=$!
-
-		sleep 60
+		done
 		kill $PID_SERVER
-		kill $PID_CLIENT
 		set +m
 
 		# We now have a collection of lines for all running nodes with lines like:
@@ -180,7 +194,7 @@ else
 		then
 			# Did not receive communication from other nodes, starting a new cluster
 			echo "${LOG_MESSAGE} No communication received from other nodes, starting a new cluster..."
-			START="--wsrep-new-cluster"
+			START="--wsrep_start_position=$POSITION --wsrep-new-cluster"
 
 		elif [[ -n $VIEW_ID ]]
 		then
@@ -198,7 +212,7 @@ else
 					TOTAL_SEQNOS=$(<$tmpfile awk -F: "BEGIN{print \"$POSITION\"} /^seqno:/{print \$3 \":\" \$4}" | sort -u | wc -l)
 					if [[ $TOTAL_SEQNOS -eq 1 ]]; then
 						echo "${LOG_MESSAGE} All nodes have same seqno so using gvwstate.dat"
-						START=" "
+						START="--wsrep_start_position=$POSITION"
 					else
 						echo "${LOG_MESSAGE} Will not use gvwstate because mis-matching seqnos would cause SST"
 					fi
@@ -220,17 +234,23 @@ else
 			BEST_SEQNO=$(<$tmpfile awk -F: '/^seqno:/{print $4}' | sort -nu | tail -n 1)
 			if [ "$MY_SEQNO" -gt "$BEST_SEQNO" ]; then
 				# This node is newer than all the others, start a new cluster
-				START="--wsrep-new-cluster"
+				echo "${LOG_MESSAGE} This node is newer than all the others. Starting a new cluster..."
+				START="--wsrep_start_position=$POSITION --wsrep-new-cluster"
 			elif [ "$MY_SEQNO" -lt "$BEST_SEQNO" ]; then
 				# This node is older than another node, be a joiner
+				echo "${LOG_MESSAGE} This node is older than another node. Will be a joiner..."
 				START="--wsrep_start_position=$POSITION"
+				sleep 30
 			else
 				# This and another node or nodes are the newest, lowest IP wins
 				LOWEST_IP=$(<$tmpfile awk -F: "/:$BEST_SEQNO$/{print \$2}" | sort -u | head -n 1)
 				if [ "$NODE_ADDRESS" \< "$LOWEST_IP" ]; then
-					START="--wsrep-new-cluster"
+					echo "${LOG_MESSAGE} This node is equal to the most advanced and has the lowest IP. Starting a new cluster..."
+					START="--wsrep_start_position=$POSITION --wsrep-new-cluster"
 				else
+					echo "${LOG_MESSAGE} This node is the most advanced but another node ($LOWEST_IP) has a lower IP. Will be a joiner..."
 					START="--wsrep_start_position=$POSITION"
+					sleep 30
 				fi
 			fi
 		fi
