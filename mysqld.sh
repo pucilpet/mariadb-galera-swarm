@@ -6,7 +6,6 @@
 
 LOG_MESSAGE="mysqld.sh:"
 OPT="$@"
-START=""
 
 function do_install_db {
 	if ! test -d /var/lib/mysql/mysql; then
@@ -32,26 +31,18 @@ function check_nodes {
 
 if [[ "$OPT" =~ /--wsrep-new-cluster/ ]]
 then
-	# --wsrep-new-cluster is used for the "seed" node so no recovery used
+	# --wsrep-new-cluster is used for the "seed" command so no recovery used
 	echo "${LOG_MESSAGE} Starting a new cluster..."
 	do_install_db
 
-elif test -f /var/lib/mysql/wsrep-new-cluster
-then
-	# flag file indicating new cluster needed, possibly easier than using "seed" in some cases
-	echo "${LOG_MESSAGE} Starting a new cluster (because of flag file)..."
-	rm -f /var/lib/mysql/wsrep-new-cluster
-	do_install_db
-	START="--wsrep-new-cluster"
-
 elif ! test -f /var/lib/mysql/ibdata1
 then
-	# skip recovery on empty data directory
+	# Skip recovery on empty data directory
 	echo "${LOG_MESSAGE} No ibdata1 found, starting a fresh node..."
 	do_install_db
 
 else
-	# try to recover state from grastate.dat or logfile
+	# Try to recover state from grastate.dat or logfile
 	POSITION=''
 	if ! test -f /var/lib/mysql/grastate.dat; then
 		echo "${LOG_MESSAGE} Missing grastate.dat file..."
@@ -75,7 +66,7 @@ else
 		fi
 	fi
 
-	if test -z "$POSITION"; then
+	if [[ -z $POSITION ]]; then
 		echo "${LOG_MESSAGE} --------------------------------------------------"
 		echo "${LOG_MESSAGE} Attempting to recover GTID positon..."
 
@@ -92,10 +83,21 @@ else
 		rm -f $tmpfile
 	fi
 
-	# If unable to find position then something is really wrong and cluster is possibly corrupt
-	if test -z "$POSITION"; then
+	if [[ -f /var/lib/mysql/wsrep-new-cluster ]]
+	then
+		# Flag file indicating new cluster needed, possibly easier than using "seed" in some cases
+		echo "${LOG_MESSAGE} Starting a new cluster (because of flag file)..."
+		rm -f /var/lib/mysql/wsrep-new-cluster
+		do_install_db
+		START="--wsrep-new-cluster"
+		[[ -n $POSITION ]] && START="--wsrep_start_position=$POSITION $START"
+
+	elif [[ -z $POSITION ]]
+	then
+		# If unable to find position then something is really wrong and cluster is possibly corrupt
 		echo "${LOG_MESSAGE} We found no wsrep position!"
 		echo "${LOG_MESSAGE} Refusing to start since something is seriously wrong.."
+		echo "${LOG_MESSAGE} Touch /var/lib/mysql/wsrep-new-cluster to force a node to start a new cluster."
 		echo "${LOG_MESSAGE} "
 		echo "${LOG_MESSAGE}       VvVvVv         "
 		echo "${LOG_MESSAGE}       |-  -|    //   "
@@ -105,25 +107,24 @@ else
 		echo "${LOG_MESSAGE}        \\__/         "
 		echo "${LOG_MESSAGE} "
 		exit 1
-	fi
 
-	# Communicate to other nodes to find if there is a Primary Component and if not
-	# figure out who has the highest recovery position to be the bootstrapper
-	NODE_ADDRESS=$(<<<$OPT sed -E 's#.*--wsrep_node_address=([0-9\.]+):4567.*#\1#')
-	GCOMM=$(<<<$OPT sed -E 's#.*gcomm://([0-9\.,]+)\s+.*#\1#')
-	LISTEN_PORT=3309
-	# Use the galera-healthcheck server to determine if a healthy node exists
-	if check_nodes $GCOMM $NODE_ADDRESS
-	then
-		echo "${LOG_MESSAGE} Found a healthy node! Attempting to join..."
-		START="--wsrep_start_position=$POSITION"
-	fi
+	else
+		# Communicate to other nodes to find if there is a Primary Component and if not
+		# figure out who has the highest recovery position to be the bootstrapper
+		NODE_ADDRESS=$(<<<$OPT sed -E 's#.*--wsrep_node_address=([0-9\.]+):4567.*#\1#')
+		GCOMM=$(<<<$OPT sed -E 's#.*gcomm://([0-9\.,]+)\s+.*#\1#')
+		LISTEN_PORT=3309
 
-	if test -z "$START"
-	then
-		EXPECT_NODES=3
+		# Use the galera-healthcheck server to determine if a healthy node exists
+		if check_nodes $GCOMM $NODE_ADDRESS
+		then
+			echo "${LOG_MESSAGE} Found a healthy node! Attempting to join..."
+			START="--wsrep_start_position=$POSITION"
+		fi
+
+		EXPECT_NODES=3 # Ideally we have a three-node cluster. This will be adjusted down to 2 later
 		VIEW_ID=''
-		if test -f /var/lib/mysql/gvwstate.dat
+		if [[ -f /var/lib/mysql/gvwstate.dat ]]
 		then
 			# gvwstate.dat is only useful if all nodes have the same view so we will check
 			VIEW_ID=$(</var/lib/mysql/gvwstate.dat awk '/^view_id:/{print $2 " " $3 " " $4}')
@@ -167,9 +168,16 @@ else
 			if check_nodes $GCOMM $NODE_ADDRESS; then
 				break
 			fi
-			if [[ $i -eq 0 ]]; then
+			if [[ $i -eq 24 ]]; then
+				echo "${LOG_MESSAGE} Could not communicate with at least $EXPECT_NODES other nodes and no nodes are up..."
+				if [[ $EXPECT_NODES -gt 2 ]]; then
+					EXPECT_NODES=$((EXPECT_NODES - 1))
+					echo "${LOG_MESSAGE} Reducing expected nodes to $EXPECT_NODES after having waited for one minute..."
+				fi
+			elif [[ $i -eq 0 ]]; then
 				echo "${LOG_MESSAGE} Could not communicate with at least $EXPECT_NODES other nodes and no nodes are up... Giving up!"
-				break
+				echo "${LOG_MESSAGE} Touch /var/lib/mysql/wsrep-new-cluster to force a node to start a new cluster."
+				exit 1
 			fi
 			sleep 5
 		done
