@@ -170,7 +170,7 @@ else
 			fi
 			if [[ $i -eq 24 ]]; then
 				echo "${LOG_MESSAGE} Could not communicate with at least $EXPECT_NODES other nodes and no nodes are up..."
-				if [[ $EXPECT_NODES -gt 2 ]]; then
+				if [[ $EXPECT_NODES -gt 1 ]]; then
 					EXPECT_NODES=$((EXPECT_NODES - 1))
 					echo "${LOG_MESSAGE} Reducing expected nodes to $EXPECT_NODES after having waited for one minute..."
 				fi
