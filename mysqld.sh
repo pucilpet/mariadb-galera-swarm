@@ -50,11 +50,6 @@ then
 	echo "${LOG_MESSAGE} No ibdata1 found, starting a fresh node..."
 	do_install_db
 
-elif test -f /var/lib/mysql/gvwstate.dat
-then
-    # gvwstate.dat indicates that wsrep_cluster_status was previously Primary so let pc.recovery do it's thing.
-	echo "${LOG_MESSAGE} gvwstate.dat file found, relying on pc.recovery to restore cluster state..."
-
 else
 	# try to recover state from grastate.dat or logfile
 	POSITION=''
@@ -133,9 +128,17 @@ else
 
 	if test -z "$START"
 	then
+		VIEW_ID=''
+		if test -f /var/lib/mysql/gvwstate.dat
+		then
+			# gvwstate.dat is only useful if all nodes have the same view so we will check
+			VIEW_ID=$(</var/lib/mysql/gvwstate.dat awk '/^view_id:/{print $2 " " $3 " " $4}')
+			echo "${LOG_MESSAGE} Found view from gvwstate.dat: $VIEW_ID"
+		fi
+
 		# If no healthy node is running then collect uuid:seqno from other nodes and
 		# use them to determine which node should do the bootstrap
-		echo "${LOG_MESSAGE} Collecting grastate.dat info from other nodes..."
+		echo "${LOG_MESSAGE} Collecting grastate.dat and gvwstate.dat info from other nodes..."
 		set -m
 		tmpfile=$(mktemp -t socat.XXXX)
 		socat -u TCP-LISTEN:$LISTEN_PORT,bind=$NODE_ADDRESS,fork OPEN:$tmpfile,append &
@@ -145,7 +148,10 @@ else
 		for i in {1..7}; do
 			for node in ${GCOMM//,/ }; do
 				[ "$node" = "$NODE_ADDRESS" ] && continue
-				socat - TCP:$node:$LISTEN_PORT <<< "$NODE_ADDRESS:$POSITION"
+				socat - TCP:$node:$LISTEN_PORT <<< "seqno:$NODE_ADDRESS:$POSITION"
+				if [[ -n $VIEW_ID ]]; then
+					socat - TCP:$node:$LISTEN_PORT <<< "view:$NODE_ADDRESS:$VIEW_ID"
+				fi
 			done
 			sleep 5
 		done &
@@ -156,17 +162,62 @@ else
 		kill $PID_CLIENT
 		set +m
 
+		# We now have a collection of lines for all running nodes with lines like:
+		#   seqno:<ip>:<uuid>:<seqno>
+		#   view:<ip>:<view_id>
+
 		if check_nodes $GCOMM $NODE_ADDRESS
 		then
 			# Check once more for healthy nodes in case one came up while we were waiting
 			echo "${LOG_MESSAGE} Found a healthy node, attempting to join..."
 			START="--wsrep_start_position=$POSITION"
+			if test -f /var/lib/mysql/gvwstate.dat; then
+				rm -f /var/lib/mysql/gvwstate.dat
+				echo "${LOG_MESSAGE} Deleted gvwstate.dat"
+			fi
 
-		elif test -s $tmpfile
+		elif ! [[ -s $tmpfile ]]
 		then
-			# We now have a collection of <ip>:<uuid>:<seqno> for all running nodes.
+			# Did not receive communication from other nodes, starting a new cluster
+			echo "${LOG_MESSAGE} No communication received from other nodes, starting a new cluster..."
+			START="--wsrep-new-cluster"
+
+		elif [[ -n $VIEW_ID ]]
+		then
+			# If all nodes have consistent views then we will maybe use gvwstate.dat to restore previous state
+			NUM_VIEWS=$(<$tmpfile awk -F: "BEGIN{print \"$VIEW_ID\"} /^view:/{print \$3}" | sort -u | wc -l)
+			if [ $NUM_VIEWS -eq 1 ]
+			then
+				echo "${LOG_MESSAGE} Cluster has one view, checking presence of all members..."
+				LOCAL_MEMBERS=$(grep '^member:' /var/lib/mysql/gvwstate.dat | wc -l)
+				TOTAL_MEMBERS=$(grep '^view:' $tmpfile | sort -u | wc -l)
+				TOTAL_MEMBERS=$((TOTAL_MEMBERS + 1)) # Add 1 for self
+				if [[ $LOCAL_MEMBERS -eq $TOTAL_MEMBERS ]]; then
+					# Entire cluster was shut down and restarted at once, will restore old Primary Component
+					echo "${LOG_MESSAGE} gvwstate.dat file appears valid on all nodes"
+					TOTAL_SEQNOS=$(<$tmpfile awk -F: "BEGIN{print \"$POSITION\"} /^seqno:/{print \$3 \":\" \$4}" | sort -u | wc -l)
+					if [[ $TOTAL_SEQNOS -eq 1 ]]; then
+						echo "${LOG_MESSAGE} All nodes have same seqno so using gvwstate.dat"
+						START=" "
+					else
+						echo "${LOG_MESSAGE} Will not use gvwstate because mis-matching seqnos would cause SST"
+					fi
+				else
+					# Not all members are present so PC cannot be restored
+					echo "${LOG_MESSAGE} Not all members are present"
+					rm /var/lib/mysql/gvwstate.dat
+				fi
+			else
+				echo "${LOG_MESSAGE} Cluster has more than one view, deleting gvwstate.dat"
+				rm /var/lib/mysql/gvwstate.dat
+			fi
+		fi
+
+		if [[ -z $START ]]
+		then
+			# Otherwise we will start a new Primary Component with the best node
 			MY_SEQNO=${POSITION#*:}
-			BEST_SEQNO=$(<$tmpfile awk -F: '{print $3}' | sort -nu | tail -n 1)
+			BEST_SEQNO=$(<$tmpfile awk -F: '/^seqno:{print $4}' | sort -nu | tail -n 1)
 			if [ "$MY_SEQNO" -gt "$BEST_SEQNO" ]; then
 				# This node is newer than all the others, start a new cluster
 				START="--wsrep-new-cluster"
@@ -175,16 +226,13 @@ else
 				START="--wsrep_start_position=$POSITION"
 			else
 				# This and another node or nodes are the newest, lowest IP wins
-				LOWEST_IP=$(<$tmpfile awk -F: "/:$BEST_SEQNO$/{print \$1}" | sort -u | head -n 1)
+				LOWEST_IP=$(<$tmpfile awk -F: "/:$BEST_SEQNO$/{print \$2}" | sort -u | head -n 1)
 				if [ "$NODE_ADDRESS" \< "$LOWEST_IP" ]; then
 					START="--wsrep-new-cluster"
 				else
 					START="--wsrep_start_position=$POSITION"
 				fi
 			fi
-		else
-			# Did not receive communication from other nodes, starting a new cluster
-			START="--wsrep-new-cluster"
 		fi
 	fi
 fi
