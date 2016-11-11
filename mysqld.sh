@@ -203,6 +203,7 @@ else
 		if [[ -n $START ]]
 		then
 			# Do nothing, we already know what to do
+			true
 
 		elif ! [[ -s $tmpfile ]]
 		then
@@ -255,7 +256,7 @@ else
 				# This node is older than another node, be a joiner
 				echo "${LOG_MESSAGE} This node is older than another node. Will be a joiner..."
 				START="--wsrep_start_position=$POSITION"
-				sleep 30
+				sleep 5
 			else
 				# This and another node or nodes are the newest, lowest IP wins
 				LOWEST_IP=$(<$tmpfile awk -F: "/:$BEST_SEQNO$/{print \$2}" | sort -u | head -n 1)
@@ -265,7 +266,7 @@ else
 				else
 					echo "${LOG_MESSAGE} This node is the most advanced but another node ($LOWEST_IP) has a lower IP. Will be a joiner..."
 					START="--wsrep_start_position=$POSITION"
-					sleep 30
+					sleep 5
 				fi
 			fi
 		fi
