@@ -29,6 +29,11 @@ function check_nodes {
 	return 1
 }
 
+# Set 'TRACE=y' environment variable to see detailed output for debugging
+if [ "$TRACE" = "y" ]; then
+	set -x
+fi
+
 if [[ "$OPT" =~ /--wsrep-new-cluster/ ]]
 then
 	# --wsrep-new-cluster is used for the "seed" command so no recovery used
