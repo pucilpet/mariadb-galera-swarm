@@ -22,7 +22,7 @@ if [ -z "$NODE_ADDRESS" ]; then
 fi
 if [ -z "$NODE_ADDRESS" ]; then
 	# Support Docker Swarm Mode
-	NODE_ADDRESS=$(ip addr | awk '/inet/ && /eth0/{sub(/\/.*$/,"",$2); print $2}')
+	NODE_ADDRESS=$(ip addr | awk '/inet/ && /eth0/{sub(/\/.*$/,"",$2); print $2}' | head -n 1)
 elif [[ "$NODE_ADDRESS" =~ [a-zA-Z][a-zA-Z0-9:]+ ]]; then
 	# Support interface - e.g. Docker Swarm Mode uses eth0
 	NODE_ADDRESS=$(ip addr | awk "/inet/ && / $NODE_ADDRESS\$/{sub(/\\/.*$/,\"\",\$2); print \$2}" | head -n 1)
