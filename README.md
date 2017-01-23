@@ -47,6 +47,21 @@ Additional variables for "node":
 
  - `GCOMM_MINIMUM` (optional - defaults to 2)
 
+
+### Health Checks
+
+By default there are two HTTP-based healthcheck servers running in the background.
+
+* Port 8080 only reports healthy when ready to serve clients. Use this one for load balancer health checks
+* Port 8081 reports healthy as long as the server is synced or donor/desynced state. This one is used to help
+  other nodes determine cluster state before launching the server.
+
+The default "HEALTHCHECK" command returns healthy status if `/var/lib/mysql/sst_in_progress` is present to avoid
+a node being killed during an SST. Otherwise it uses the first health check (port 8080) to return healthy only if
+it is fully ready to serve clients. How you want the healthcheck command to behave will vary on your uses for the
+healthcheck so you may need to override it depending on the behavior you desire. Regardless, both healthcheck servers
+will be started and will use negligible resources unless they are actually being pinged.
+
 ### More Info
 
  - Tries to handle as many recovery scenarios as possible including full cluster ungraceful shutdown by
