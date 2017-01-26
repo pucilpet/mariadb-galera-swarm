@@ -13,6 +13,9 @@ if [ "$TRACE" = "y" ]; then
 	set -x
 fi
 
+# Set data directory permissions for later use of "gosu"
+chown mysql /var/lib/mysql
+
 #
 # Resolve node address
 #
