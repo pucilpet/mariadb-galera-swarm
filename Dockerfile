@@ -11,7 +11,7 @@ COPY *.sh                    /usr/local/bin/
 COPY bin/galera-healthcheck  /usr/local/bin/galera-healthcheck
 COPY primary-component.sql   /
 
-EXPOSE 3306 4444 4567 4567/udp 4568
+EXPOSE 3306 4444 4567 4567/udp 4568 8080 8081
 
 HEALTHCHECK CMD test -f /var/lib/mysql/sst_in_progress || curl -f -o - http://localhost:8080/ || exit 1
 
