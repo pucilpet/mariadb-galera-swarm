@@ -15,7 +15,7 @@ It takes as a command one of the following:
    and resetting root credentials.
  - "sleep" - Start the container but not the server. Runs "sleep infinity". Useful just to get volumes
    initialized or if you want to `docker exec` without the server running.
- 
+
 The main feature over the official maraiadb image is that DNS-resolution is used to discover other nodes
 so they don't have to be specified explicitly. Works with any system with DNS-based service discovery such
 as Kontena, Docker Swarm Mode, Consul, etc.
@@ -31,7 +31,7 @@ as Kontena, Docker Swarm Mode, Consul, etc.
 
 ### Environment Variables
 
- - `XTRABACKUP_PASSWORD` (required)
+ - `XTRABACKUP_PASSWORD` (required unless `XTRABACKUP_PASSWORD_FILE` is provided)
  - `SYSTEM_PASSWORD` (optional - defaults to hash of `XTRABACKUP_PASSWORD`)
  - `CLUSTER_NAME` (optional)
  - `NODE_ADDRESS` (optional - defaults to ethwe, then eth0)
@@ -47,6 +47,18 @@ Additional variables for "node":
 
  - `GCOMM_MINIMUM` (optional - defaults to 2)
 
+#### Providing secrets through files
+
+It's also possible to configure the sensitive variables (especially passwords)
+by providing files. This makes it easier, for example, to integrate with
+[Docker Swarm's secret support](https://docs.docker.com/engine/swarm/secrets/)
+added in Docker 1.13.0.
+
+The path to the secret file must be provided in environment variables:
+- `XTRABACKUP_PASSWORD_FILE` (required unless `XTRABACKUP_PASSWORD` provided)
+- `SYSTEM_PASSWORD_FILE` (optional - defaults to hash of `XTRABACKUP_PASSWORD`)
+- `MYSQL_ROOT_PASSWORD_FILE` (optional)
+- `MYSQL_PASSWORD_FILE` (optional)
 
 ### Health Checks
 
