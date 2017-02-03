@@ -3,7 +3,7 @@
 This Docker container is based on the official Docker `mariadb:10.1` image and is designed to be
 compatible with auto-scheduling systems, specifically Docker Swarm Mode (1.12+) and Kontena.
 However, it could also work with manual scheduling (`docker run`) by specifying the correct
-environment variables.
+environment variables or possibly other scheduling systems that use similar conventions.
 
 It takes as a command one of the following:
 
@@ -16,9 +16,8 @@ It takes as a command one of the following:
  - "sleep" - Start the container but not the server. Runs "sleep infinity". Useful just to get volumes
    initialized or if you want to `docker exec` without the server running.
 
-The main feature over the official maraiadb image is that DNS-resolution is used to discover other nodes
-so they don't have to be specified explicitly. Works with any system with DNS-based service discovery such
-as Kontena, Docker Swarm Mode, Consul, etc.
+By using DNS resolution to discover other nodes they don't have to be specified explicitly. This should works
+with any system with DNS-based service discovery such as Kontena, Docker Swarm Mode, Consul, etc.
 
 ### Example (Docker 1.12 Swarm Mode)
 
@@ -82,8 +81,8 @@ will be started and will use negligible resources unless they are actually being
  - If you need to perform manual recovery of a previously healthy cluster you can use "node" mode
    but touch a file at `/var/lib/mysql/wsrep-new-cluster` to force a node to bootstrap a new cluster
    and bypass the automatic recovery steps.
- - XtraBackup is used for state transfer and MariaDb now supports `pc.recovery` so the correct node should
-   automatically become master in the case of all nodes being grgacefully shutdown.
+ - XtraBackup is used for state transfer and MariaDb now supports `pc.recovery` so the primary component should
+   automatically be recovered in the case of all nodes being gracefully shutdown.
  - A go server runs within the cluster exposing an http service for intelligent health checking.
     - Port 8080 is used by the Docker 1.12 HEALTHCHECK feature and also can be used by any other health checking
       node in the network such as HAProxy or Consul to determine readable/writeable nodes.
