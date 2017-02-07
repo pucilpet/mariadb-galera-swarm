@@ -212,7 +212,7 @@ set +e -m
 
 # Allow external processes to write to docker logs (wsrep_notify_cmd)
 fifo=/tmp/mysql-console
-mkfifo $fifo && chown mysql $fifo && tail -f $fifo &
+rm -f $fifo && mkfifo $fifo && chown mysql $fifo && tail -f $fifo &
 tail_pid=$!
 
 function shutdown () {
@@ -252,7 +252,6 @@ RC=$?
 echo "MariaDB exited with return code ($RC)"
 test -f /var/lib/mysql/grastate.dat && cat /var/lib/mysql/grastate.dat
 
-kill $tail_pid && rm -f /tmp/mysql-console
 test -s /var/run/galera-healthcheck-1.pid && kill $(cat /var/run/galera-healthcheck-1.pid)
 test -s /var/run/galera-healthcheck-2.pid && kill $(cat /var/run/galera-healthcheck-2.pid)
 
