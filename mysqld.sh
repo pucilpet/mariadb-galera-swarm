@@ -34,7 +34,7 @@ if [ "$TRACE" = "y" ]; then
 	set -x
 fi
 
-if [[ "$OPT" =~ /--wsrep-new-cluster/ ]]
+if [[ "$OPT" =~ --wsrep-new-cluster ]]
 then
 	# --wsrep-new-cluster is used for the "seed" command so no recovery used
 	echo "${LOG_MESSAGE} Starting a new cluster..."
