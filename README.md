@@ -100,6 +100,8 @@ will be started and will use negligible resources unless they are actually being
  - If the file `/usr/local/lib/startup.sh` exists it will be sourced in the start.sh script.
  - If you need to promote a running node to be a new "Primary Component" you can run the following command to do so:
        $ docker exec -i <container> mysql -p /primary-component.sql
+ - You can monitor cluster state changes more clearly by setting `wsrep_notify_cmd` to `/usr/local/bin/notify.sh`
+   which will output the updates to the Docker logs/console.
 
 ### Credit
 
