@@ -212,8 +212,7 @@ set +e -m
 
 # Allow external processes to write to docker logs (wsrep_notify_cmd)
 fifo=/tmp/mysql-console
-mkfifo $fifo
-tail -f $fifo &
+mkfifo $fifo && chown mysql $fifo && tail -f $fifo &
 tail_pid=$!
 
 function shutdown () {
