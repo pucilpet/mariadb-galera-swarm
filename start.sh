@@ -15,6 +15,7 @@ fi
 
 # Set data directory permissions for later use of "gosu"
 chown mysql /var/lib/mysql
+touch /var/lib/mysql/pre-boot.flag
 
 #
 # Resolve node address
@@ -206,6 +207,9 @@ case "$1" in
 		echo "Starting node, connecting to gcomm://$GCOMM"
 		;;
 esac
+
+# Pre-boot completed
+rm -f /var/lib/mysql/pre-boot.flag
 
 # start processes
 set +e -m

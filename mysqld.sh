@@ -52,6 +52,7 @@ function fatal_error {
 	echo "${LOG_MESSAGE}       | () |         "
 	echo "${LOG_MESSAGE}        \\__/         "
 	echo "${LOG_MESSAGE} "
+	rm -f /var/lib/mysql/auto-recovery.flag
 	exit 1
 }
 
@@ -74,6 +75,7 @@ then
 
 else
 	# Try to recover state from grastate.dat or logfile
+	touch /var/lib/mysql/auto-recovery.flag
 	POSITION=''
 	SAFE_TO_BOOTSTRAP=-1
 	if ! test -f /var/lib/mysql/grastate.dat; then
@@ -211,8 +213,7 @@ else
 				fi
 			elif [[ $i -eq 0 ]]; then
 				echo "${LOG_MESSAGE} Could not communicate with at least $EXPECT_NODES other nodes and no nodes are up... Giving up!"
-				echo "${LOG_MESSAGE} Touch /var/lib/mysql/wsrep-new-cluster to force a node to start a new cluster."
-				exit 1
+				fatal_error
 			fi
 			sleep 5
 		done
@@ -230,7 +231,7 @@ else
 
 		elif ! [[ -s $tmpfile ]]
 		then
-			# Did not receive communication from other nodes, starting a new cluster
+			# Did not receive communication from other nodes
 			echo "${LOG_MESSAGE} No communication received from other nodes."
 			fatal_error
 
@@ -322,6 +323,7 @@ else
 			fi
 		fi
 	fi
+	rm -f /var/lib/mysql/auto-recovery.flag
 fi
 
 # Start mysqld

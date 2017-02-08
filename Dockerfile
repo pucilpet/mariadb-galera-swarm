@@ -13,6 +13,6 @@ COPY primary-component.sql   /
 
 EXPOSE 3306 4444 4567 4567/udp 4568 8080 8081
 
-HEALTHCHECK CMD test -f /var/lib/mysql/sst_in_progress || curl -f -o - http://localhost:8080/ || exit 1
+HEALTHCHECK CMD /usr/local/bin/healthcheck.sh
 
 ENTRYPOINT ["start.sh"]
