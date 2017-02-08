@@ -219,7 +219,7 @@ else
 		kill $PID_SERVER
 		set +m
 
-		# We now have a collection of lines for all running nodes with lines like:
+		# We now have a collection of lines for all *other* running nodes with lines like:
 		#   seqno:<ip>:<uuid>:<seqno>:<safe_to_bootstrap>
 		#   view:<ip>:<view_id>
 
@@ -270,6 +270,9 @@ else
 		then
 			# Prefer to choose node using safe_to_bootstrap flag
 			SAFE_NODES=($(<$tmpfile awk -F: '/^seqno:/{ if ($5=="1") print $2}' | sort -u))
+			if [[ $SAFE_TO_BOOTSTRAP -eq 1 ]]; then
+				SAFE_NODES+=($NODE_ADDRESS)
+			fi
 			case ${#SAFE_NODES[@]} in
 				0)
 					echo "${LOG_MESSAGE} No nodes are safe_to_bootstrap. Falling back to uuid/seqno method."
