@@ -298,6 +298,7 @@ else
 			# Otherwise we will start a new Primary Component with the best node by position
 			MY_SEQNO=${POSITION#*:}
 			BEST_SEQNO=$(<$tmpfile awk -F: '/^seqno:/{print $4}' | sort -nu | tail -n 1)
+			echo "${LOG_MESSAGE} Comparing my seqno ($MY_SEQNO) to the best other node seqno ($BEST_SEQNO)..."
 			if [ "$MY_SEQNO" -gt "$BEST_SEQNO" ]; then
 				# This node is newer than all the others, start a new cluster
 				echo "${LOG_MESSAGE} This node is newer than all the others. Starting a new cluster..."
@@ -309,7 +310,7 @@ else
 				sleep $HEAD_START
 			else
 				# This and another node or nodes are the newest, lowest IP wins
-				LOWEST_IP=$(<$tmpfile awk -F: "/:$BEST_SEQNO$/{print \$2}" | sort -u | head -n 1)
+				LOWEST_IP=$(<$tmpfile awk -F: "/^seqno:/{ if (\$4==\"$BEST_SEQNO\") print \$2 }" | sort -u | head -n 1)
 				if [ "$NODE_ADDRESS" \< "$LOWEST_IP" ]; then
 					echo "${LOG_MESSAGE} This node is equal to the most advanced and has the lowest IP. Starting a new cluster..."
 					prepare_bootstrap
