@@ -7,6 +7,6 @@ elif test -f /var/lib/mysql/auto-recovery.flag; then
 elif test -f /var/lib/mysql/sst_in_progress; then
   echo "State Snapshot Transfer in progress..."
 else
-  curl -f -o - http://localhost:8080/ || exit 1
+  curl -sSf -o - localhost:8080 2>&1 || exit 1
 fi
 exit 0
