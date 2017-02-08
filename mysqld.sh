@@ -4,8 +4,9 @@
 # or create a new one if the old one cannot be joined
 #
 
-LOG_MESSAGE="mysqld.sh:"
+LOG_MESSAGE="===|mysqld.sh|===:"
 OPT="$@"
+HEAD_START=15
 
 function do_install_db {
 	if ! test -d /var/lib/mysql/mysql; then
@@ -29,6 +30,31 @@ function check_nodes {
 	return 1
 }
 
+function prepare_bootstrap {
+	START="--wsrep-new-cluster"
+	if [[ -n $POSITION ]]; then
+		START="--wsrep_start_position=$POSITION $START"
+	fi
+	OPT=$(<<<$OPT sed 's#--wsrep_cluster_address=gcomm://[0-9,.]*##')
+	if [[ -f /var/lib/mysql/grastate.dat ]]; then
+		sed -i -e 's/^safe_to_bootstrap: *0/safe_to_bootstrap: 1/' /var/lib/mysql/grastate.dat
+	fi
+}
+
+function fatal_error {
+	echo "${LOG_MESSAGE} Refusing to start since something is seriously wrong.."
+	echo "${LOG_MESSAGE} Touch /var/lib/mysql/wsrep-new-cluster to force a node to start a new cluster."
+	echo "${LOG_MESSAGE} "
+	echo "${LOG_MESSAGE}       VvVvVv         "
+	echo "${LOG_MESSAGE}       |-  -|    //   "
+	echo "${LOG_MESSAGE}  <----|O  O|---<<<   "
+	echo "${LOG_MESSAGE}       |  D |    \\\\ "
+	echo "${LOG_MESSAGE}       | () |         "
+	echo "${LOG_MESSAGE}        \\__/         "
+	echo "${LOG_MESSAGE} "
+	exit 1
+}
+
 # Set 'TRACE=y' environment variable to see detailed output for debugging
 if [ "$TRACE" = "y" ]; then
 	set -x
@@ -49,6 +75,7 @@ then
 else
 	# Try to recover state from grastate.dat or logfile
 	POSITION=''
+	SAFE_TO_BOOTSTRAP=-1
 	if ! test -f /var/lib/mysql/grastate.dat; then
 		echo "${LOG_MESSAGE} Missing grastate.dat file..."
 	elif ! grep -q 'seqno:' /var/lib/mysql/grastate.dat; then
@@ -58,11 +85,13 @@ else
 	else
 		uuid=$(awk '/^uuid:/{print $2}' /var/lib/mysql/grastate.dat)
 		seqno=$(awk '/^seqno:/{print $2}' /var/lib/mysql/grastate.dat)
+		SAFE_TO_BOOTSTRAP=$(awk '/^safe_to_bootstrap:/{print $2}' /var/lib/mysql/grastate.dat)
 		if [ "$seqno" = "-1" ]; then
 			echo "${LOG_MESSAGE} uuid is known but seqno is not..."
 		elif [ -n "$uuid" ] && [ -n "$seqno" ]; then
 			POSITION="$uuid:$seqno"
 			echo "${LOG_MESSAGE} Recovered position from grastate.dat: $POSITION"
+			echo "${LOG_MESSAGE} Safe to bootstrap: $SAFE_TO_BOOTSTRAP"
 		else
 			echo "${LOG_MESSAGE} The grastate.dat file appears to be corrupt:"
 			echo "##########################"
@@ -97,24 +126,13 @@ else
 		echo "${LOG_MESSAGE} Starting a new cluster (because of flag file)..."
 		rm -f /var/lib/mysql/wsrep-new-cluster
 		do_install_db
-		START="--wsrep-new-cluster"
-		[[ -n $POSITION ]] && START="--wsrep_start_position=$POSITION $START"
+		prepare_bootstrap
 
 	elif [[ -z $POSITION ]]
 	then
 		# If unable to find position then something is really wrong and cluster is possibly corrupt
 		echo "${LOG_MESSAGE} We found no wsrep position!"
-		echo "${LOG_MESSAGE} Refusing to start since something is seriously wrong.."
-		echo "${LOG_MESSAGE} Touch /var/lib/mysql/wsrep-new-cluster to force a node to start a new cluster."
-		echo "${LOG_MESSAGE} "
-		echo "${LOG_MESSAGE}       VvVvVv         "
-		echo "${LOG_MESSAGE}       |-  -|    //   "
-		echo "${LOG_MESSAGE}  <----|O  O|---<<<   "
-		echo "${LOG_MESSAGE}       |  D |    \\\\ "
-		echo "${LOG_MESSAGE}       | () |         "
-		echo "${LOG_MESSAGE}        \\__/         "
-		echo "${LOG_MESSAGE} "
-		exit 1
+		fatal_error
 
 	elif check_nodes $GCOMM $NODE_ADDRESS
 	then
@@ -151,12 +169,12 @@ else
 		socat -u TCP-LISTEN:$LISTEN_PORT,bind=$NODE_ADDRESS,fork OPEN:$tmpfile,append &
 		PID_SERVER=$!
 
-		# Send uuid:seqno to other nodes - every 5 seconds for 3 minutes or until all nodes reached
+		# Send state data to other nodes - every 5 seconds for 3 minutes or until all nodes reached
 		SENT_NODES=''
 		for i in {36..0}; do
 			for node in ${GCOMM//,/ }; do
 				[[ $node = $NODE_ADDRESS ]] && continue
-				if socat - TCP:$node:$LISTEN_PORT <<< "seqno:$NODE_ADDRESS:$POSITION"; then
+				if socat - TCP:$node:$LISTEN_PORT <<< "seqno:$NODE_ADDRESS:$POSITION:$SAFE_TO_BOOTSTRAP"; then
 					SENT_NODES="$SENT_NODES,$node"
 				fi
 				if [[ -n $VIEW_ID ]]; then
@@ -202,7 +220,7 @@ else
 		set +m
 
 		# We now have a collection of lines for all running nodes with lines like:
-		#   seqno:<ip>:<uuid>:<seqno>
+		#   seqno:<ip>:<uuid>:<seqno>:<safe_to_bootstrap>
 		#   view:<ip>:<view_id>
 
 		if [[ -n $START ]]
@@ -213,8 +231,8 @@ else
 		elif ! [[ -s $tmpfile ]]
 		then
 			# Did not receive communication from other nodes, starting a new cluster
-			echo "${LOG_MESSAGE} No communication received from other nodes, starting a new cluster..."
-			START="--wsrep_start_position=$POSITION --wsrep-new-cluster"
+			echo "${LOG_MESSAGE} No communication received from other nodes."
+			fatal_error
 
 		elif [[ -n $VIEW_ID ]]
 		then
@@ -250,28 +268,52 @@ else
 
 		if [[ -z $START ]]
 		then
-			# Otherwise we will start a new Primary Component with the best node
+			# Prefer to choose node using safe_to_bootstrap flag
+			SAFE_NODES=($(<$tmpfile awk -F: '/^seqno:/{ if ($5=="1") print $2}' | sort -u))
+			case ${#SAFE_NODES[@]} in
+				0)
+					echo "${LOG_MESSAGE} No nodes are safe_to_bootstrap. Falling back to uuid/seqno method."
+				;;
+				1)
+					if [[ ${SAFE_NODES[0]} = $NODE_ADDRESS ]]; then
+						echo "${LOG_MESSAGE} This node is safe_to_bootstrap! Starting a new cluster..."
+						prepare_bootstrap
+					else
+						echo "${LOG_MESSAGE} Another node is safe_to_bootstrap. Will attempt to join shortly..."
+						START="--wsrep_start_position=$POSITION"
+						sleep $HEAD_START
+					fi
+				;;
+				*)
+					echo "${LOG_MESSAGE} Multiple nodes are safe_to_bootstrap. Falling back to uuid/seqno method."
+				;;
+			esac
+		fi
+
+		if [[ -z $START ]]
+		then
+			# Otherwise we will start a new Primary Component with the best node by position
 			MY_SEQNO=${POSITION#*:}
 			BEST_SEQNO=$(<$tmpfile awk -F: '/^seqno:/{print $4}' | sort -nu | tail -n 1)
 			if [ "$MY_SEQNO" -gt "$BEST_SEQNO" ]; then
 				# This node is newer than all the others, start a new cluster
 				echo "${LOG_MESSAGE} This node is newer than all the others. Starting a new cluster..."
-				START="--wsrep_start_position=$POSITION --wsrep-new-cluster"
+				prepare_bootstrap
 			elif [ "$MY_SEQNO" -lt "$BEST_SEQNO" ]; then
 				# This node is older than another node, be a joiner
 				echo "${LOG_MESSAGE} This node is older than another node. Will be a joiner..."
 				START="--wsrep_start_position=$POSITION"
-				sleep 5
+				sleep $HEAD_START
 			else
 				# This and another node or nodes are the newest, lowest IP wins
 				LOWEST_IP=$(<$tmpfile awk -F: "/:$BEST_SEQNO$/{print \$2}" | sort -u | head -n 1)
 				if [ "$NODE_ADDRESS" \< "$LOWEST_IP" ]; then
 					echo "${LOG_MESSAGE} This node is equal to the most advanced and has the lowest IP. Starting a new cluster..."
-					START="--wsrep_start_position=$POSITION --wsrep-new-cluster"
+					prepare_bootstrap
 				else
 					echo "${LOG_MESSAGE} This node is the most advanced but another node ($LOWEST_IP) has a lower IP. Will be a joiner..."
 					START="--wsrep_start_position=$POSITION"
-					sleep 5
+					sleep $HEAD_START
 				fi
 			fi
 		fi
@@ -279,7 +321,7 @@ else
 fi
 
 # Start mysqld
-echo "${LOG_MESSAGE} ----------------------------------"
+echo "${LOG_MESSAGE} ---------------------------------------------------------------"
 echo "${LOG_MESSAGE} Starting with options: $OPT $START"
 exec mysqld $OPT $START
 
