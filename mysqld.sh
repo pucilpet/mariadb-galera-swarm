@@ -35,7 +35,7 @@ function prepare_bootstrap {
 	if [[ -n $POSITION ]]; then
 		START="--wsrep_start_position=$POSITION $START"
 	fi
-	OPT=$(<<<$OPT sed 's#--wsrep_cluster_address=gcomm://[0-9,.]*##')
+	OPT=$(<<<$OPT sed 's#\(--wsrep_cluster_address=gcomm://\)[0-9,.]*#\1#')
 	if [[ -f /var/lib/mysql/grastate.dat ]]; then
 		sed -i -e 's/^safe_to_bootstrap: *0/safe_to_bootstrap: 1/' /var/lib/mysql/grastate.dat
 	fi
