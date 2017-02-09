@@ -34,6 +34,8 @@ with any system with DNS-based service discovery such as Kontena, Docker Swarm M
  - `SYSTEM_PASSWORD` (optional - defaults to hash of `XTRABACKUP_PASSWORD`)
  - `CLUSTER_NAME` (optional)
  - `NODE_ADDRESS` (optional - defaults to ethwe, then eth0)
+ - `LISTEN_WHEN_HEALTHY` (optional) - Specify a port number to open a healthcheck socket on once the cluster
+   has reached a healthy state. Useful with Kontena's `wait_for_port` feature.
 
 Additional variables for "seed":
 
@@ -63,15 +65,20 @@ The path to the secret file must be provided in environment variables:
 
 By default there are two HTTP-based healthcheck servers running in the background.
 
-* Port 8080 only reports healthy when ready to serve clients. Use this one for load balancer health checks
+* Port 8080 only reports healthy when ready to serve clients. Use this one for load balancer health checks.
 * Port 8081 reports healthy as long as the server is synced or donor/desynced state. This one is used to help
   other nodes determine cluster state before launching the server.
 
-The default "HEALTHCHECK" command returns healthy status if `/var/lib/mysql/sst_in_progress` is present to avoid
+The default `HEALTHCHECK` command returns healthy status if `/var/lib/mysql/sst_in_progress` is present to avoid
 a node being killed during an SST. Otherwise it uses the first health check (port 8080) to return healthy only if
 it is fully ready to serve clients. How you want the healthcheck command to behave will vary on your uses for the
 healthcheck so you may need to override it depending on the behavior you desire. Regardless, both healthcheck servers
 will be started and will use negligible resources unless they are actually being pinged.
+
+Additionally, if a `LISTEN_WHEN_HEALTHY` port number is specified then the container will start a loop checking it's
+own port 8080 health check described above until it reports healthy at which point it will open a new socket on this
+port which just forwards to port 8080. This can be used with Kontena's `wait_for_port` feature to accomodate the
+rolling update mechanism.
 
 ### More Info
 

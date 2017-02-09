@@ -326,6 +326,17 @@ else
 	rm -f /var/lib/mysql/auto-recovery.flag
 fi
 
+# Support Kontena wait_for_port option
+if [[ $LISTEN_WHEN_HEALTHY -gt 0 ]]; then
+	while true; do
+		if curl -sSf -o /dev/null localhost:8080; then
+			socat TCP4-LISTEN:$LISTEN_WHEN_HEALTHY,fork TCP4:localhost:8080 &
+			break
+		fi
+		sleep 10
+	done &
+fi
+
 # Start mysqld
 echo "${LOG_MESSAGE} ---------------------------------------------------------------"
 echo "${LOG_MESSAGE} Starting with options: $OPT $START"
