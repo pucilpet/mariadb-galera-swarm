@@ -19,14 +19,20 @@ It takes as a command one of the following:
 By using DNS resolution to discover other nodes they don't have to be specified explicitly. This should works
 with any system with DNS-based service discovery such as Kontena, Docker Swarm Mode, Consul, etc.
 
-### Example (Docker 1.12 Swarm Mode)
+### Examples
+
+#### Docker 1.12 Swarm Mode
 
 ```bash
- $ docker service create --name galera-seed --replicas 1 [OPTIONS] [IMAGE] seed
- $ docker service create --name galera --replicas 2 [OPTIONS] [IMAGE] node tasks.galera-seed,tasks.galera
+ $ docker service create --name galera-seed --replicas 1 [OPTIONS] colinmollenhour/mariadb-galera-swarm seed
+ $ docker service create --name galera --replicas 2 [OPTIONS] colinmollenhour/mariadb-galera-swarm node tasks.galera-seed,tasks.galera
  $ docker service rm galera-seed
  $ docker service scale galera=3
 ```
+
+#### [Docker 1.13 Swarm Mode (stack)](https://github.com/colinmollenhour/mariadb-galera-swarm/blob/master/examples/swarm)
+
+Please submit more examples for Kubernetes, Mesos, etc. and also improvements for existing examples!
 
 ### Environment Variables
 
