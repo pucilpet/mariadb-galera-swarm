@@ -4,6 +4,7 @@ RUN set -x \
     && apt-get update \
     && apt-get install -y --no-install-recommends --no-install-suggests \
       curl \
+      pigz \
     && rm -rf /tmp/* /var/cache/apk/* /var/lib/apt/lists/*
 
 COPY conf.d/*                /etc/mysql/conf.d/

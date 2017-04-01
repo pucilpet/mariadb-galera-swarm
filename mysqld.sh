@@ -31,7 +31,7 @@ function check_nodes {
 }
 
 function prepare_bootstrap {
-	START="--wsrep-new-cluster"
+	[[ "$OPT" =~ --wsrep-new-cluster ]] || START="--wsrep-new-cluster"
 	if [[ -n $POSITION ]]; then
 		START="--wsrep_start_position=$POSITION $START"
 	fi
@@ -66,6 +66,7 @@ then
 	# --wsrep-new-cluster is used for the "seed" command so no recovery used
 	echo "${LOG_MESSAGE} Starting a new cluster..."
 	do_install_db
+	prepare_bootstrap
 
 elif ! test -f /var/lib/mysql/ibdata1
 then
@@ -75,7 +76,9 @@ then
 
 else
 	# Try to recover state from grastate.dat or logfile
-	touch /var/lib/mysql/auto-recovery.flag
+	if [[ $HEALTHY_WHILE_BOOTING -eq 1 ]]; then
+		touch /var/lib/mysql/auto-recovery.flag
+	fi
 	POSITION=''
 	SAFE_TO_BOOTSTRAP=-1
 	if ! test -f /var/lib/mysql/grastate.dat; then
@@ -122,15 +125,7 @@ else
 	NODE_ADDRESS=$(<<<$OPT sed -E 's#.*--wsrep_node_address=([0-9\.]+):4567.*#\1#')
 	GCOMM=$(<<<$OPT sed -E 's#.*gcomm://([0-9\.,]+)\s+.*#\1#')
 
-	if [[ -f /var/lib/mysql/wsrep-new-cluster ]]
-	then
-		# Flag file indicating new cluster needed, possibly easier than using "seed" in some cases
-		echo "${LOG_MESSAGE} Starting a new cluster (because of flag file)..."
-		rm -f /var/lib/mysql/wsrep-new-cluster
-		do_install_db
-		prepare_bootstrap
-
-	elif [[ -z $POSITION ]]
+	if [[ -z $POSITION ]]
 	then
 		# If unable to find position then something is really wrong and cluster is possibly corrupt
 		echo "${LOG_MESSAGE} We found no wsrep position!"
@@ -326,7 +321,8 @@ else
 	rm -f /var/lib/mysql/auto-recovery.flag
 fi
 
-# Support Kontena wait_for_port option
+# Support "truly healthy" healthchecks by listening on a new port (forwarded to the main healthcheck)
+# We support TCP and HTTP healthchecks by not listening until the main healthcheck reports healthy status
 if [[ $LISTEN_WHEN_HEALTHY -gt 0 ]]; then
 	while true; do
 		if curl -sSf -o /dev/null localhost:8080; then

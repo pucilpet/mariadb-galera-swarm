@@ -15,50 +15,6 @@ fi
 
 # Set data directory permissions for later use of "gosu"
 chown mysql /var/lib/mysql
-touch /var/lib/mysql/pre-boot.flag
-
-#
-# Resolve node address
-#
-if [ -z "$NODE_ADDRESS" ]; then
-	# Support Weave/Kontena
-	NODE_ADDRESS=$(ip addr | awk '/inet/ && /ethwe/{sub(/\/.*$/,"",$2); print $2}')
-fi
-if [ -z "$NODE_ADDRESS" ]; then
-	# Support Docker Swarm Mode
-	NODE_ADDRESS=$(ip addr | awk '/inet/ && /eth0/{sub(/\/.*$/,"",$2); print $2}' | head -n 1)
-elif [[ "$NODE_ADDRESS" =~ [a-zA-Z][a-zA-Z0-9:]+ ]]; then
-	# Support interface - e.g. Docker Swarm Mode uses eth0
-	NODE_ADDRESS=$(ip addr | awk "/inet/ && / $NODE_ADDRESS\$/{sub(/\\/.*$/,\"\",\$2); print \$2}" | head -n 1)
-elif ! [[ "$NODE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-	# Support grep pattern. E.g. ^10.0.1.*
-	NODE_ADDRESS=$(getent hosts $(hostname) | grep -e "$NODE_ADDRESS")
-fi
-if ! [[ "$NODE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-	echo "Could not determine NODE_ADDRESS: $NODE_ADDRESS"
-	exit 1
-fi
-echo "...------======------... MariaDB Galera Start Script ...------======------..."
-echo "Got NODE_ADDRESS=$NODE_ADDRESS"
-
-# Read optional secrets from files
-if [ -z $XTRABACKUP_PASSWORD ] && [ -f $XTRABACKUP_PASSWORD_FILE ]; then
-	XTRABACKUP_PASSWORD=$(cat $XTRABACKUP_PASSWORD_FILE)
-fi
-if [ -z $SYSTEM_PASSWORD ] && [ -f $SYSTEM_PASSWORD_FILE ]; then
-	SYSTEM_PASSWORD=$(cat $SYSTEM_PASSWORD_FILE)
-fi
-if [ -z $MYSQL_ROOT_PASSWORD ] && [ -f $MYSQL_ROOT_PASSWORD_FILE ]; then
-	MYSQL_ROOT_PASSWORD=$(cat $MYSQL_ROOT_PASSWORD_FILE)
-fi
-if [ -z $MYSQL_PASSWORD ] && [ -f $MYSQL_PASSWORD_FILE ]; then
-	MYSQL_PASSWORD=$(cat $MYSQL_PASSWORD_FILE)
-fi
-
-# System password defaults to hash of xtrabackup password
-if test -n "$XTRABACKUP_PASSWORD"; then
-	SYSTEM_PASSWORD=${SYSTEM_PASSWORD:-$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')}
-fi
 
 #
 # Utility modes
@@ -84,15 +40,66 @@ case "$1" in
 		exit
 		;;
 	seed|node)
+		START_MODE=$1
+		shift
 		;;
 	*)
 		echo "sleep|no-galera|bash|seed|node <othernode>,..."
 		exit 1
 esac
 
+#
+# Resolve node address
+#
+if [ -z "$NODE_ADDRESS" ]; then
+	# Support Weave/Kontena
+	NODE_ADDRESS=$(ip addr | awk '/inet/ && /ethwe/{sub(/\/.*$/,"",$2); print $2}')
+fi
+if [ -z "$NODE_ADDRESS" ]; then
+	# Support Docker Swarm Mode
+	NODE_ADDRESS=$(ip addr | awk '/inet/ && /eth0/{sub(/\/.*$/,"",$2); print $2}' | head -n 1)
+elif [[ "$NODE_ADDRESS" =~ [a-zA-Z][a-zA-Z0-9:]+ ]]; then
+	# Support interface - e.g. Docker Swarm Mode uses eth0
+	NODE_ADDRESS=$(ip addr | awk "/inet/ && / $NODE_ADDRESS\$/{sub(/\\/.*$/,\"\",\$2); print \$2}" | head -n 1)
+elif ! [[ "$NODE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+	# Support grep pattern. E.g. ^10.0.1.*
+	NODE_ADDRESS=$(getent hosts $(hostname) | grep -e "$NODE_ADDRESS")
+fi
+if ! [[ "$NODE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+	echo "Could not determine NODE_ADDRESS: $NODE_ADDRESS"
+	exit 1
+fi
+echo "...------======------... MariaDB Galera Start Script ...------======------..."
+echo "Got NODE_ADDRESS=$NODE_ADDRESS"
+
+#
+# Read optional secrets from files
+#
+XTRABACKUP_PASSWORD_FILE=${XTRABACKUP_PASSWORD_FILE:-/run/secrets/xtrabackup_password}
+SYSTEM_PASSWORD_FILE=${SYSTEM_PASSWORD_FILE:-/run/secrets/system_password}
+MYSQL_ROOT_PASSWORD_FILE=${MYSQL_ROOT_PASSWORD_FILE:-/run/secrets/mysql_root_password}
+MYSQL_PASSWORD_FILE=${MYSQL_PASSWORD_FILE:-/run/secrets/mysql_password}
+MYSQL_DATABASE_FILE=${MYSQL_DATABASE_FILE:-/run/secrets/mysql_database}
+if [ -z $XTRABACKUP_PASSWORD ] && [ -f $XTRABACKUP_PASSWORD_FILE ]; then
+	XTRABACKUP_PASSWORD=$(cat $XTRABACKUP_PASSWORD_FILE)
+fi
+if [ -z $SYSTEM_PASSWORD ] && [ -f $SYSTEM_PASSWORD_FILE ]; then
+	SYSTEM_PASSWORD=$(cat $SYSTEM_PASSWORD_FILE)
+fi
+if [ -z $MYSQL_ROOT_PASSWORD ] && [ -f $MYSQL_ROOT_PASSWORD_FILE ]; then
+	MYSQL_ROOT_PASSWORD=$(cat $MYSQL_ROOT_PASSWORD_FILE)
+fi
+if [ -z $MYSQL_PASSWORD ] && [ -f $MYSQL_PASSWORD_FILE ]; then
+	MYSQL_PASSWORD=$(cat $MYSQL_PASSWORD_FILE)
+fi
+if [ -z $MYSQL_DATABASE ] && [ -f $MYSQL_DATABASE_FILE ]; then
+	MYSQL_DATABASE=$(cat $MYSQL_DATABASE_FILE)
+fi
+
 # XTRABACKUP_PASSWORD required from this point forward
 [ -z "$XTRABACKUP_PASSWORD" ] && { echo "XTRABACKUP_PASSWORD not set"; exit 1; }
 [ -z "$SYSTEM_PASSWORD" ] && SYSTEM_PASSWORD=$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')
+
 CLUSTER_NAME=${CLUSTER_NAME:-cluster}
 GCOMM_MINIMUM=${GCOMM_MINIMUM:-2}
 GCOMM=""
@@ -103,9 +110,28 @@ if [ -f /usr/local/lib/startup.sh ]; then
 	source /usr/local/lib/startup.sh
 fi
 
+# Hold startup until the flag file is deleted
+if [[ -f /var/lib/mysql/hold-start ]]; then
+	echo "Waiting for 'hold-start' flag file to be deleted..."
+	while [[ -f /var/lib/mysql/hold-start ]]; do
+		sleep 10
+	done
+fi
+
+# Allow "node" to be "seed" if "new-cluster" file is present
+# In this case the MYSQL_ROOT_PASSWORD may be specified within the file
+if [[ $START_MODE = "node" ]] && [[ -f /var/lib/mysql/new-cluster ]]; then
+	START_MODE=seed
+    shift # get rid of node argument
+	if [[ -s /var/lib/mysql/new-cluster ]]; then
+		MYSQL_ROOT_PASSWORD="$(cat /var/lib/mysql/new-cluster)"
+	fi
+	rm -f /var/lib/mysql/new-cluster
+fi
+
 # Generate init file to create required users
-if   ( [ "$1" = "node" ] && [ -f /var/lib/mysql/force-cluster-bootstrapping ] ) \
-  || ( [ "$1" = "seed" ] && ! [ -f /var/lib/mysql/skip-cluster-bootstrapping ] )
+if   ( [ "$START_MODE" = "node" ] && [ -f /var/lib/mysql/force-cluster-bootstrapping ] ) \
+  || ( [ "$START_MODE" = "seed" ] && ! [ -f /var/lib/mysql/skip-cluster-bootstrapping ] )
 then
 	echo "Generating cluster bootstrap script..."
 	if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
@@ -152,21 +178,23 @@ fi
 #  - seed - Start a new cluster - run only once and use 'node' after cluster is started
 #  - node - Join an existing cluster
 #
-case "$1" in
+case $START_MODE in
 	seed)
 		MYSQL_MODE_ARGS+=" --wsrep-on=ON --wsrep-new-cluster"
-		shift 1
 		echo "Starting seed node"
-		;;
+	;;
 	node)
-		MYSQL_MODE_ARGS+=" --wsrep-on=ON"
-		if [ -z "$2" ]; then
-			echo "Missing master node address"
+		ADDRS="$1"
+		shift
+		if [[ -z $ADDRS ]]; then
+			echo "List of nodes addresses/hostnames required"
 			exit 1
 		fi
-		ADDRS="$2"
+		MYSQL_MODE_ARGS+=" --wsrep-on=ON"
 		RESOLVE=0
 		SLEEPS=0
+
+		# Begin service discovery of other node addresses
 		while true; do
 			SEP=""
 			GCOMM=""
@@ -189,6 +217,12 @@ case "$1" in
 			# by `docker service update <service>` or on a full cluster power loss
 			COUNT=$(echo "$GCOMM" | tr ',' "\n" | sort -u | grep -v -e "^$NODE_ADDRESS\$" -e '^$' | wc -l)
 			if [ $RESOLVE -eq 1 ] && [ $COUNT -lt $(($GCOMM_MINIMUM - 1)) ]; then
+
+				# Bypass healthcheck so we can keep waiting for other nodes to appear
+				if [[ $HEALTHY_WHILE_BOOTING -eq 1 ]]; then
+					touch /var/lib/mysql/pre-boot.flag
+				fi
+
 				echo "Waiting for at least $GCOMM_MINIMUM IP addresses to resolve..."
 				SLEEPS=$((SLEEPS + 1))
 				sleep 3
@@ -203,13 +237,12 @@ case "$1" in
 				echo "Reducing GCOMM_MINIMUM to $GCOMM_MINIMUM"
 			fi
 		done
-		shift 2
+		# Pre-boot completed
+		rm -f /var/lib/mysql/pre-boot.flag
 		echo "Starting node, connecting to gcomm://$GCOMM"
-		;;
+	;;
 esac
 
-# Pre-boot completed
-rm -f /var/lib/mysql/pre-boot.flag
 
 # start processes
 set +e -m

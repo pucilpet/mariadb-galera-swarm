@@ -22,6 +22,7 @@ services:
     environment:
       - XTRABACKUP_PASSWORD_FILE=/run/secrets/xtrabackup_password
       - NODE_ADDRESS=eth0
+      - HEALTHY_WHILE_BOOTING=1
     command: node seed,node
     deploy:
       replicas: 0
