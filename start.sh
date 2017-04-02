@@ -77,27 +77,13 @@ echo "Got NODE_ADDRESS=$NODE_ADDRESS"
 #
 XTRABACKUP_PASSWORD_FILE=${XTRABACKUP_PASSWORD_FILE:-/run/secrets/xtrabackup_password}
 SYSTEM_PASSWORD_FILE=${SYSTEM_PASSWORD_FILE:-/run/secrets/system_password}
-MYSQL_ROOT_PASSWORD_FILE=${MYSQL_ROOT_PASSWORD_FILE:-/run/secrets/mysql_root_password}
-MYSQL_PASSWORD_FILE=${MYSQL_PASSWORD_FILE:-/run/secrets/mysql_password}
-MYSQL_DATABASE_FILE=${MYSQL_DATABASE_FILE:-/run/secrets/mysql_database}
 if [ -z $XTRABACKUP_PASSWORD ] && [ -f $XTRABACKUP_PASSWORD_FILE ]; then
 	XTRABACKUP_PASSWORD=$(cat $XTRABACKUP_PASSWORD_FILE)
 fi
+[ -z "$XTRABACKUP_PASSWORD" ] && { echo "XTRABACKUP_PASSWORD not set"; exit 1; }
 if [ -z $SYSTEM_PASSWORD ] && [ -f $SYSTEM_PASSWORD_FILE ]; then
 	SYSTEM_PASSWORD=$(cat $SYSTEM_PASSWORD_FILE)
 fi
-if [ -z $MYSQL_ROOT_PASSWORD ] && [ -f $MYSQL_ROOT_PASSWORD_FILE ]; then
-	MYSQL_ROOT_PASSWORD=$(cat $MYSQL_ROOT_PASSWORD_FILE)
-fi
-if [ -z $MYSQL_PASSWORD ] && [ -f $MYSQL_PASSWORD_FILE ]; then
-	MYSQL_PASSWORD=$(cat $MYSQL_PASSWORD_FILE)
-fi
-if [ -z $MYSQL_DATABASE ] && [ -f $MYSQL_DATABASE_FILE ]; then
-	MYSQL_DATABASE=$(cat $MYSQL_DATABASE_FILE)
-fi
-
-# XTRABACKUP_PASSWORD required from this point forward
-[ -z "$XTRABACKUP_PASSWORD" ] && { echo "XTRABACKUP_PASSWORD not set"; exit 1; }
 [ -z "$SYSTEM_PASSWORD" ] && SYSTEM_PASSWORD=$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')
 
 CLUSTER_NAME=${CLUSTER_NAME:-cluster}
@@ -134,6 +120,18 @@ if   ( [ "$START_MODE" = "node" ] && [ -f /var/lib/mysql/force-cluster-bootstrap
   || ( [ "$START_MODE" = "seed" ] && ! [ -f /var/lib/mysql/skip-cluster-bootstrapping ] )
 then
 	echo "Generating cluster bootstrap script..."
+	MYSQL_ROOT_PASSWORD_FILE=${MYSQL_ROOT_PASSWORD_FILE:-/run/secrets/mysql_root_password}
+	MYSQL_PASSWORD_FILE=${MYSQL_PASSWORD_FILE:-/run/secrets/mysql_password}
+	MYSQL_DATABASE_FILE=${MYSQL_DATABASE_FILE:-/run/secrets/mysql_database}
+	if [ -z $MYSQL_ROOT_PASSWORD ] && [ -f $MYSQL_ROOT_PASSWORD_FILE ]; then
+		MYSQL_ROOT_PASSWORD=$(cat $MYSQL_ROOT_PASSWORD_FILE)
+	fi
+	if [ -z $MYSQL_PASSWORD ] && [ -f $MYSQL_PASSWORD_FILE ]; then
+		MYSQL_PASSWORD=$(cat $MYSQL_PASSWORD_FILE)
+	fi
+	if [ -z $MYSQL_DATABASE ] && [ -f $MYSQL_DATABASE_FILE ]; then
+		MYSQL_DATABASE=$(cat $MYSQL_DATABASE_FILE)
+	fi
 	if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
 		MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
 		echo "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD"
