@@ -16,6 +16,11 @@ fi
 # Set data directory permissions for later use of "gosu"
 chown mysql /var/lib/mysql
 
+# Allow for easily adding more startup scripts
+if [ -f /usr/local/lib/startup.sh ]; then
+	source /usr/local/lib/startup.sh "$@"
+fi
+
 #
 # Utility modes
 #
@@ -90,11 +95,6 @@ CLUSTER_NAME=${CLUSTER_NAME:-cluster}
 GCOMM_MINIMUM=${GCOMM_MINIMUM:-2}
 GCOMM=""
 MYSQL_MODE_ARGS=""
-
-# Allow for easily adding more startup scripts
-if [ -f /usr/local/lib/startup.sh ]; then
-	source /usr/local/lib/startup.sh
-fi
 
 # Hold startup until the flag file is deleted
 if [[ -f /var/lib/mysql/hold-start ]]; then
