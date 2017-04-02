@@ -166,6 +166,9 @@ EOF
 	fi
 	echo "FLUSH PRIVILEGES;" >> /tmp/bootstrap.sql
 
+	# Add timezone info
+	mysql_tzinfo_to_sql /usr/share/zoneinfo >> /tmp/bootstrap.sql
+
 	MYSQL_MODE_ARGS+=" --init-file=/tmp/bootstrap.sql"
 	rm -f /var/lib/mysql/force-cluster-bootstrapping
 	touch /var/lib/mysql/skip-cluster-bootstrapping
