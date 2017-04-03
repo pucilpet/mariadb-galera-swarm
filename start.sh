@@ -249,8 +249,15 @@ esac
 set +e -m
 
 # Allow external processes to write to docker logs (wsrep_notify_cmd)
-fifo=/tmp/mysql-console
-rm -f $fifo && mkfifo $fifo && chown mysql $fifo && echo "Tailing $fifo..." && tail -F $fifo &
+# Place it in a directory that is not writeable by mysql to prevent SST script from deleting it
+fifo=/tmp/mysql-console/fifo
+rm -rf $(dirname $fifo) \
+  && mkdir -p $(dirname $fifo) \
+  && chmod 755 $(dirname $fifo) \
+  && mkfifo $fifo \
+  && chmod o+rw $fifo \
+  && echo "Tailing $fifo..." \
+  && tail -F $fifo &
 tail_pid=$!
 
 function shutdown () {

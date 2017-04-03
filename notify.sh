@@ -1,2 +1,2 @@
 #!/bin/bash
-echo "CLUSTER STATUS CHANGED: $@" >> /tmp/mysql-console
+echo "CLUSTER STATUS CHANGED: $@" >> /tmp/mysql-console/fifo
