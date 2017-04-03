@@ -5,6 +5,10 @@ RUN set -x \
     && apt-get install -y --no-install-recommends --no-install-suggests \
       curl \
       pigz \
+      pv \
+    && curl -sSL -o /tmp/qpress.tar http://www.quicklz.com/qpress-11-linux-x64.tar \
+    && tar -C /usr/local/bin -xf /tmp/qpress.tar qpress \
+    && chmod +x /usr/local/bin/qpress \
     && rm -rf /tmp/* /var/cache/apk/* /var/lib/apt/lists/*
 
 COPY conf.d/*                /etc/mysql/conf.d/

@@ -325,7 +325,7 @@ fi
 # We support TCP and HTTP healthchecks by not listening until the main healthcheck reports healthy status
 if [[ $LISTEN_WHEN_HEALTHY -gt 0 ]]; then
 	while true; do
-		if curl -sSf -o /dev/null localhost:8080; then
+		if curl -sSf -o /dev/null localhost:8080 2>/dev/null; then
 			socat TCP4-LISTEN:$LISTEN_WHEN_HEALTHY,fork TCP4:localhost:8080 &
 			break
 		fi
