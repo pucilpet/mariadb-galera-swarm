@@ -34,6 +34,8 @@ with any system with DNS-based service discovery such as Kontena, Docker Swarm M
 
 #### [Docker 1.13 Swarm Mode (stack)](https://github.com/colinmollenhour/mariadb-galera-swarm/blob/master/examples/swarm)
 
+#### [Kontena](https://github.com/colinmollenhour/mariadb-galera-swarm/blob/master/examples/kontena)
+
 Please submit more examples for Kubernetes, Mesos, etc. and also improvements for existing examples!
 
 ### Environment Variables
