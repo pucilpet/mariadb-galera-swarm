@@ -16,3 +16,7 @@ $ docker service scale galera_node=2
 $ docker service scale galera_seed=0
 $ docker service scale galera_node=3
 ```
+
+Note, currently I do not know of a good way to retrieve the DNS name to lookup other IPs so the
+`docker-compose.yml` file has `galera_seed,galera_node` hard-coded which would not work unless
+`galera` is used as the name of the stack for the `docker stack deploy` command.
