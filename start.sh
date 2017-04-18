@@ -166,6 +166,17 @@ EOF
 	fi
 	echo "FLUSH PRIVILEGES;" >> /tmp/bootstrap.sql
 
+	# Add additional database initialization scripts
+        for f in /docker-entrypoint-initdb.d/*; do
+                case "$f" in
+                        *.sh)     echo "$0: running $f"; . "$f" ;;
+                        *.sql)    echo "$0: appending $f"; cat "$f" >> /tmp/bootstrap.sql ;;
+                        *.sql.gz) echo "$0: appending $f"; gunzip -c "$f" >> /tmp/bootstrap.sql ;;
+                        *)        echo "$0: ignoring $f" ;;
+                esac
+                echo
+        done
+
 	# Add timezone info
 	mysql_tzinfo_to_sql /usr/share/zoneinfo >> /tmp/bootstrap.sql
 
