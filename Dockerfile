@@ -5,6 +5,7 @@ RUN set -x \
     && apt-get install -y --no-install-recommends --no-install-suggests \
       curl \
       pigz \
+      percona-toolkit \
       pv \
     && curl -sSL -o /tmp/qpress.tar http://www.quicklz.com/qpress-11-linux-x64.tar \
     && tar -C /usr/local/bin -xf /tmp/qpress.tar qpress \
