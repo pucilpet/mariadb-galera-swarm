@@ -27,7 +27,7 @@ services:
       - HEALTHY_WHILE_BOOTING=1
     networks:
       - galera_network
-    command: node galera_seed,galera_node
+    command: node seed,node
     deploy:
       replicas: 0
     secrets:
