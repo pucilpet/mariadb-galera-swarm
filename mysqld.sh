@@ -11,9 +11,18 @@ HEAD_START=15
 function do_install_db {
 	if ! test -d /var/lib/mysql/mysql; then
 		echo "${LOG_MESSAGE} Initializing MariaDb data directory..."
-		if ! mysql_install_db; then
-			echo "${LOG_MESSAGE} Failed to initialized data directory. Will hope for the best..."
-			return 1
+		if ! mysql_install_db --rpm; then
+			echo "${LOG_MESSAGE} Failed to initialize data directory."
+			exit 1
+		fi
+
+		# Start temporary server with no networking for loading tzinfo
+		mysqld --skip-networking --skip-grant-tables --socket=/tmp/mysql.sock &
+		local pid=$!
+		mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql --protocol=socket -uroot -hlocalhost --socket=/tmp/mysql.sock mysql
+		if ! kill -s TERM $pid || ! wait $pid; then
+			echo "${LOG_MESSAGE} Loading tzinfo failed."
+			exit 1
 		fi
 	fi
 	return 0
