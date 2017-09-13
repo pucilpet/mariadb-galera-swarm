@@ -17,8 +17,10 @@ function do_install_db {
 		fi
 
 		# Start temporary server with no networking for loading tzinfo
+		echo "${LOG_MESSAGE} Loading timezone info..."
 		mysqld --skip-networking --skip-grant-tables --socket=/tmp/mysql.sock &
 		local pid=$!
+		sleep 3
 		mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql --protocol=socket -uroot -hlocalhost --socket=/tmp/mysql.sock mysql
 		if ! kill -s TERM $pid || ! wait $pid; then
 			echo "${LOG_MESSAGE} Loading tzinfo failed."
