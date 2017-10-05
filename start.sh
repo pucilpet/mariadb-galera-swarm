@@ -33,7 +33,7 @@ case "$1" in
 	no-galera)
 		echo "Starting with Galera disabled"
 		shift 1
-		gosu mysql mysqld --console \
+		gosu mysql mysqld.sh --console \
 			--wsrep-on=OFF \
 			--default-time-zone="+00:00" \
 			"$@" 2>&1
