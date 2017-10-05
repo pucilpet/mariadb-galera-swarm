@@ -28,6 +28,8 @@ services:
     networks:
       - galera_network
     command: node seed,node
+    volumes:
+      - mysql-data:/var/lib/mysql
     deploy:
       replicas: 0
     secrets:
