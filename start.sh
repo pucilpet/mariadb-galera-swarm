@@ -2,11 +2,23 @@
 
 # Exit on errors but report line number
 set -e
-err_report() {
+function err_report () {
 	echo "start.sh: Trapped error on line $1"
 	exit
 }
 trap 'err_report $LINENO' ERR
+
+function shutdown () {
+	echo "Received TERM|INT signal."
+	if [[ -f /var/run/mysqld/mysqld.pid ]] && [[ -n $SYSTEM_PASSWORD ]]; then
+		echo "Shutting down..."
+		mysql -u system -h 127.0.0.1 -p$SYSTEM_PASSWORD -e 'SHUTDOWN'
+		# Since this is docker, expect that if we don't shut down quickly enough we will get killed anyway
+	else
+		exit
+	fi
+}
+trap shutdown TERM INT
 
 # Set 'TRACE=y' environment variable to see detailed output for debugging
 if [ "$TRACE" = "y" ]; then
@@ -27,22 +39,25 @@ fi
 case "$1" in
 	sleep)
 		echo "Sleeping forever..."
+		trap - TERM INT
 		sleep infinity
 		exit
 		;;
 	no-galera)
 		echo "Starting with Galera disabled"
 		shift 1
+		set +e -m
 		gosu mysql mysqld.sh --console \
 			--wsrep-on=OFF \
 			--default-time-zone="+00:00" \
-			"$@" 2>&1
+			"$@" 2>&1 &
+		wait $! || true
 		exit
 		;;
 	bash)
 		shift 1
-		/bin/bash "$@"
-		exit
+		trap - TERM INT
+		exec /bin/bash "$@"
 		;;
 	seed|node)
 		START_MODE=$1
@@ -267,13 +282,6 @@ rm -rf $(dirname $fifo) \
   && echo "Tailing $fifo..." \
   && tail -F $fifo &
 tail_pid=$!
-
-function shutdown () {
-	echo "Received TERM|INT signal. Shutting down..."
-	mysql -u system -h 127.0.0.1 -p$SYSTEM_PASSWORD -e 'SHUTDOWN'
-	# Since this is docker, expect that if we don't shut down quickly enough we will get killed anyway
-}
-trap shutdown TERM INT
 
 # Port 8080 only reports healthy when ready to serve clients
 # Use this one for load balancer health checks

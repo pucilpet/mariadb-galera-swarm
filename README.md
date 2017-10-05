@@ -48,6 +48,7 @@ Please submit more examples for Kubernetes, Mesos, etc. and also improvements fo
    has reached a healthy state. Useful with Kontena's `wait_for_port` feature.
  - `HEALTHY_WHILE_BOOTING` (optional) - If '1' then the HEALTHCHECK script will report healthy
    during the boot phase (waiting for DNS to resolve and recovering wsrep position).
+ - `SKIP_TZINFO` (optional) - Specify any value to skip loading of timezone table data when initing a new directory.
 
 Additional variables for "seed":
 
