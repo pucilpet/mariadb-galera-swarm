@@ -55,7 +55,7 @@ function prepare_bootstrap {
 
 function fatal_error {
 	echo "${LOG_MESSAGE} Refusing to start since something is seriously wrong.."
-	echo "${LOG_MESSAGE} Touch /var/lib/mysql/wsrep-new-cluster to force a node to start a new cluster."
+	echo "${LOG_MESSAGE} Touch /var/lib/mysql/new-cluster to force a node to start a new cluster."
 	echo "${LOG_MESSAGE} "
 	echo "${LOG_MESSAGE}       VvVvVv         "
 	echo "${LOG_MESSAGE}       |-  -|    //   "

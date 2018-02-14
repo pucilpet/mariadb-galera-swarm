@@ -115,7 +115,7 @@ rolling update mechanism.
    using --wsrep-recovery and inter-node communication to discover the optimal node for bootstrapping
    a new cluster when the old one cannot be recovered.
  - If you need to perform manual recovery of a previously healthy cluster you can use "node" mode
-   but touch a file at `/var/lib/mysql/wsrep-new-cluster` to force a node to bootstrap a new cluster
+   but touch a file at `/var/lib/mysql/new-cluster` to force a node to bootstrap a new cluster
    and bypass the automatic recovery steps.
  - XtraBackup is used for state transfer and MariaDb now supports `pc.recovery` so the primary component should
    automatically be recovered in the case of all nodes being gracefully shutdown. It is important tha all nodes are
