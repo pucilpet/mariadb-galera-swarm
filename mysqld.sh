@@ -181,6 +181,13 @@ else
 		# Send state data to other nodes - every 5 seconds for 3 minutes or until all nodes reached
 		SENT_NODES=''
 		for i in {36..0}; do
+			# Allow user to touch flag file during startup
+			if [[ -f /var/lib/mysql/new-cluster ]]; then
+				echo "Found 'new-cluster' flag file. Starting new cluster."
+				rm -f /var/lib/mysql/new-cluster
+				prepare_bootstrap
+				break
+			fi
 			for node in ${GCOMM//,/ }; do
 				[[ $node = $NODE_ADDRESS ]] && continue
 				if socat - TCP:$node:$LISTEN_PORT <<< "seqno:$NODE_ADDRESS:$POSITION:$SAFE_TO_BOOTSTRAP"; then

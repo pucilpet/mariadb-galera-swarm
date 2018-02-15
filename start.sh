@@ -123,7 +123,7 @@ fi
 # In this case the MYSQL_ROOT_PASSWORD may be specified within the file
 if [[ $START_MODE = "node" ]] && [[ -f /var/lib/mysql/new-cluster ]]; then
 	START_MODE=seed
-    shift # get rid of node argument
+	shift # get rid of node argument
 	if [[ -s /var/lib/mysql/new-cluster ]]; then
 		MYSQL_ROOT_PASSWORD="$(cat /var/lib/mysql/new-cluster)"
 	fi
@@ -220,6 +220,13 @@ case $START_MODE in
 
 		# Begin service discovery of other node addresses
 		while true; do
+			# Allow user to touch flag file during startup
+			if [[ -f /var/lib/mysql/new-cluster ]]; then
+				MYSQL_MODE_ARGS+=" --wsrep-new-cluster"
+				echo "Found 'new-cluster' flag file. Starting new cluster."
+				rm -f /var/lib/mysql/new-cluster
+				break
+			fi
 			SEP=""
 			GCOMM=""
 			for ADDR in ${ADDRS//,/ }; do
