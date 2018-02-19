@@ -99,12 +99,12 @@ MYSQL_MODE_ARGS=""
 #
 
 # mode is xtrabackup?
-if [[ $SST_MODE =~ ^xtrabackup.*$ ]] ; then
+if [[ $SST_METHOD =~ ^xtrabackup ]] ; then
   XTRABACKUP_PASSWORD_FILE=${XTRABACKUP_PASSWORD_FILE:-/run/secrets/xtrabackup_password}
   if [ -z $XTRABACKUP_PASSWORD ] && [ -f $XTRABACKUP_PASSWORD_FILE ]; then
 	XTRABACKUP_PASSWORD=$(cat $XTRABACKUP_PASSWORD_FILE)
   fi
-  [ -z "$XTRABACKUP_PASSWORD" ] && { echo "XTRABACKUP_PASSWORD not set"; exit 1; }
+  [ -z "$XTRABACKUP_PASSWORD" ] && echo "WARNING: XTRABACKUP_PASSWORD is empty"
   MYSQL_MODE_ARGS+=" --wsrep_sst_auth=xtrabackup:$XTRABACKUP_PASSWORD" 
 fi
 
@@ -112,9 +112,9 @@ SYSTEM_PASSWORD_FILE=${SYSTEM_PASSWORD_FILE:-/run/secrets/system_password}
 if [ -z $SYSTEM_PASSWORD ] && [ -f $SYSTEM_PASSWORD_FILE ]; then
 	SYSTEM_PASSWORD=$(cat $SYSTEM_PASSWORD_FILE)
 fi
-if [ -z "$SYSTEM_PASSWORD" ] ; then
-  if [ -z "$XTRABACKUP_PASSWORD" ] ; then
-     SYSTEM_PASSWORD= $(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')
+if [ -z "$SYSTEM_PASSWORD" ]; then
+  if [ -n "$XTRABACKUP_PASSWORD" ]; then
+     SYSTEM_PASSWORD=$(echo "$XTRABACKUP_PASSWORD" | sha256sum | awk '{print $1;}')
   else
      echo "SYSTEM_PASSWORD not set"
      exit 1
@@ -166,9 +166,13 @@ then
 		echo "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD"
 	fi
 
-	cat >/tmp/bootstrap.sql <<EOF
+	if [[ $SST_METHOD =~ ^xtrabackup ]] ; then
+		cat >/tmp/bootstrap.sql <<EOF
 CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost' IDENTIFIED BY '$XTRABACKUP_PASSWORD';
 GRANT RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'localhost';
+EOF
+	fi
+	cat >> /tmp/bootstrap.sql <<EOF
 CREATE USER IF NOT EXISTS 'system'@'127.0.0.1' IDENTIFIED BY '$SYSTEM_PASSWORD';
 GRANT PROCESS,SHUTDOWN ON *.* TO 'system'@'127.0.0.1';
 CREATE USER IF NOT EXISTS 'system'@'localhost' IDENTIFIED BY '$SYSTEM_PASSWORD';
