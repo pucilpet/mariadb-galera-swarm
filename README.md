@@ -16,8 +16,17 @@ It takes as a command one of the following:
  - "sleep" - Start the container but not the server. Runs "sleep infinity". Useful just to get volumes
    initialized or if you want to `docker exec` without the server running.
 
-By using DNS resolution to discover other nodes they don't have to be specified explicitly. This should works
+By using DNS resolution to discover other nodes they don't have to be specified explicitly. This should work
 with any system with DNS-based service discovery such as Kontena, Docker Swarm Mode, Consul, etc.
+
+## How It Works
+
+This is not a simple config update, much effort has gone into making this container automate the initialization
+and *recovery* of a cluster. The entrypoint script orchestrates full recovery on simultaneous reset by having
+nodes communicate with each other *before* starting the mysqld process to ensure that the cluster is recovered correctly.
+It does this by examining Galera's state files, recovering the GTID position on all nodes and then communicating this
+between nodes to find the most up-to-date one to form a new cluster if needed. It also provides multiple healthcheck
+endpoints for varying degress of healthiness to aid with integration of load balancers and scheduling systems.
 
 ### Examples
 
