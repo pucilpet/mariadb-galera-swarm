@@ -5,21 +5,15 @@ default-storage-engine=innodb
 
 innodb_autoinc_lock_mode=2
 
+# Subsequent `wsrep_provider_options` will replace the ones specified below
 wsrep_provider=/usr/lib/galera/libgalera_smm.so
-
-# Enable gcache recovery (requires additional disk space)
-# Not yet supported by MariaDb as of 10.1.21
-#gcache.recover=yes
-
-#wsrep_provider_options="gcache.size=2048M"
+wsrep_provider_options="gcache.size=2048M; gcache.keep_pages_size=1024M; gcache.recover=yes;"
+#wsrep_sst_method=xtrabackup-v2 # This is set with SST_METHOD env variable
 #wsrep_slave_threads=4
 
-#wsrep_sst_method=xtrabackup
-
 #
-# xtrabackup-v2 allows for faster SST
+# Options for xtrabackup-v2
 #
-#wsrep_sst_method=xtrabackup-v2 # This is set with SST_METHOD env variable
 [sst]
 sst-syslog=-1
 progress=/tmp/mysql-console/fifo
