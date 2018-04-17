@@ -217,7 +217,7 @@ EOF
 	if [[ $SST_METHOD =~ ^xtrabackup ]] ; then
 		cat >>/tmp/bootstrap.sql <<EOF
 CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost';
-GRANT RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'localhost';
+GRANT PROCESS,RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'localhost';
 EOF
 		if [[ -n $XTRABACKUP_PASSWORD ]]; then
 			cat >>/tmp/bootstrap.sql <<EOF
