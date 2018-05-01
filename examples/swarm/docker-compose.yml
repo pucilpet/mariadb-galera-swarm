@@ -9,7 +9,7 @@ services:
       - MYSQL_PASSWORD_FILE=/run/secrets/mysql_password
       - MYSQL_DATABASE=database
       - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql_root_password
-      - NODE_ADDRESS=^10.0.0.*
+      - NODE_ADDRESS=^10.0.*.*
     networks:
       - galera_network
     command: seed
