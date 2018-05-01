@@ -23,7 +23,7 @@ services:
     image: colinmollenhour/mariadb-galera-swarm
     environment:
       - XTRABACKUP_PASSWORD_FILE=/run/secrets/xtrabackup_password
-      - NODE_ADDRESS=^10.0.0.*
+      - NODE_ADDRESS=^10.0.*.*
       - HEALTHY_WHILE_BOOTING=1
     networks:
       - galera_network
