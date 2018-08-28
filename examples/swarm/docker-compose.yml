@@ -37,6 +37,7 @@ services:
 
 volumes:
   mysql-data:
+    name: '{{.Service.Name}}-{{.Task.Slot}}-data'
     driver: local
 
 networks:
