@@ -78,7 +78,14 @@ case "$1" in
 			--wsrep-on=OFF \
 			--default-time-zone=$DEFAULT_TIME_ZONE \
 			"$@" 2>&1 &
-		wait $! || true
+		mysql_pid=$!
+
+		# Start fake healthcheck
+		if [[ -n $FAKE_HEALTHCHECK ]]; then
+			no-galera-healthcheck.sh $FAKE_HEALTHCHECK >/dev/null &
+		fi
+
+		wait $mysql_pid || true
 		exit
 		;;
 	bash)
