@@ -74,7 +74,7 @@ case "$1" in
 		echo "Starting with Galera disabled"
 		shift 1
 		set +e -m
-		gosu mysql mysqld.sh --console \
+		gosu mysql mysqld --console \
 			--wsrep-on=OFF \
 			--default-time-zone=$DEFAULT_TIME_ZONE \
 			"$@" 2>&1 &
