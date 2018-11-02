@@ -133,7 +133,7 @@ MYSQL_MODE_ARGS=""
 #
 
 # mode is xtrabackup?
-if [[ $SST_METHOD =~ ^xtrabackup ]] ; then
+if [[ $SST_METHOD =~ ^(xtrabackup|mariabackup) ]] ; then
   XTRABACKUP_PASSWORD_FILE=${XTRABACKUP_PASSWORD_FILE:-/run/secrets/xtrabackup_password}
   if [ -z $XTRABACKUP_PASSWORD ] && [ -f $XTRABACKUP_PASSWORD_FILE ]; then
 	XTRABACKUP_PASSWORD=$(cat $XTRABACKUP_PASSWORD_FILE)
@@ -221,7 +221,7 @@ GRANT PROCESS,SHUTDOWN ON *.* TO 'system'@'localhost';
 EOF
 
 	# Create xtrabackup user if needed
-	if [[ $SST_METHOD =~ ^xtrabackup ]] ; then
+	if [[ $SST_METHOD =~ ^(xtrabackup|mariabackup) ]] ; then
 		cat >>/tmp/bootstrap.sql <<EOF
 CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost';
 GRANT PROCESS,RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'localhost';
