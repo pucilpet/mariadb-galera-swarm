@@ -55,11 +55,6 @@ fi
 # Set data directory permissions for later use of "gosu"
 chown mysql /var/lib/mysql
 
-# Allow for easily adding more startup scripts
-if [ -f /usr/local/lib/startup.sh ]; then
-	source /usr/local/lib/startup.sh "$@"
-fi
-
 #
 # Utility modes
 #
@@ -73,6 +68,12 @@ case "$1" in
 	no-galera)
 		echo "Starting with Galera disabled"
 		shift 1
+
+		# Allow for easily adding more startup scripts
+		if [ -f /usr/local/lib/startup.sh ]; then
+			source /usr/local/lib/startup.sh "$@"
+		fi
+
 		set +e -m
 		gosu mysql mysqld --console \
 			--wsrep-on=OFF \
@@ -125,6 +126,12 @@ if ! [[ "$NODE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 echo "...------======------... MariaDB Galera Start Script ...------======------..."
 echo "Got NODE_ADDRESS=$NODE_ADDRESS"
+
+# Allow for easily adding more startup scripts
+export NODE_ADDRESS
+if [ -f /usr/local/lib/startup.sh ]; then
+	source /usr/local/lib/startup.sh "$@"
+fi
 
 MYSQL_MODE_ARGS=""
 
