@@ -211,12 +211,9 @@ then
 
 	# Create 'root' user
 	cat >> /tmp/bootstrap.sql <<EOF
-CREATE USER IF NOT EXISTS 'root'@'127.0.0.1';
-SET PASSWORD FOR 'root'@'127.0.0.1' = PASSWORD('$MYSQL_ROOT_PASSWORD');
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
-CREATE USER IF NOT EXISTS 'root'@'localhost';
-SET PASSWORD FOR 'root'@'localhost' = PASSWORD('$MYSQL_ROOT_PASSWORD');
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'::1' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED VIA unix_socket WITH GRANT OPTION;
 EOF
 
 	# Create 'system' user for healthchecks and shutdown signal
@@ -383,6 +380,11 @@ galera-healthcheck -user=system -password="$SYSTEM_PASSWORD" \
 	-availWhenReadOnly=true \
 	-pidfile=/var/run/galera-healthcheck-2.pid >/dev/null &
 
+# Run automated upgrades
+if [[ -z $SKIP_UPGRADES ]] && [[ ! -f /var/lib/mysql/skip-upgrades ]]; then
+	sleep 5 && run-upgrades.sh || true &
+fi
+
 gosu mysql mysqld.sh --console \
 	$MYSQL_MODE_ARGS \
 	--wsrep_cluster_name=$CLUSTER_NAME \
@@ -390,6 +392,7 @@ gosu mysql mysqld.sh --console \
 	--wsrep_node_address=$NODE_ADDRESS:4567 \
 	--default-time-zone=$DEFAULT_TIME_ZONE \
 	"$@" 2>&1 &
+
 wait $! || true
 RC=$?
 
