@@ -215,7 +215,7 @@ else
 			# Merge in any nodes we have received data from so that we will also send data to them
 			if [[ -s $tmpfile ]]; then
 				_GCOMM="$GCOMM,$(<$tmpfile awk -F: '/^seqno:/{print $2}' | sort -u | paste -sd ',')"
-				GCOMM=$(<<<"${GCOMM%%,}" sed 's/,\+/,/g' | tr ',' '\n' | sort -u | paste -sd ',')
+				GCOMM=$(<<<"${_GCOMM%%,}" sed 's/,\+/,/g' | tr ',' '\n' | sort -u | paste -sd ',')
 				OPT=$(<<<"$OPT" sed -E "s#gcomm://[0-9\\.,]+#gcomm://$GCOMM#")
 			fi
 
