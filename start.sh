@@ -191,10 +191,14 @@ if   ( [ "$START_MODE" = "node" ] && [ -f /var/lib/mysql/force-cluster-bootstrap
 then
 	echo "Generating cluster bootstrap script..."
 	MYSQL_ROOT_PASSWORD_FILE=${MYSQL_ROOT_PASSWORD_FILE:-/run/secrets/mysql_root_password}
+	MYSQL_ROOT_HOST_FILE=${MYSQL_ROOT_HOST_FILE:-/run/secrets/mysql_root_host}
 	MYSQL_PASSWORD_FILE=${MYSQL_PASSWORD_FILE:-/run/secrets/mysql_password}
 	MYSQL_DATABASE_FILE=${MYSQL_DATABASE_FILE:-/run/secrets/mysql_database}
 	if [ -z $MYSQL_ROOT_PASSWORD ] && [ -f $MYSQL_ROOT_PASSWORD_FILE ]; then
 		MYSQL_ROOT_PASSWORD=$(cat $MYSQL_ROOT_PASSWORD_FILE)
+	fi
+	if [ -z $MYSQL_ROOT_HOST ] && [ -f $MYSQL_ROOT_HOST_FILE ]; then
+		MYSQL_ROOT_HOST=$(cat $MYSQL_ROOT_HOST_FILE)
 	fi
 	if [ -z $MYSQL_PASSWORD ] && [ -f $MYSQL_PASSWORD_FILE ]; then
 		MYSQL_PASSWORD=$(cat $MYSQL_PASSWORD_FILE)
@@ -206,15 +210,25 @@ then
 		MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
 		echo "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD"
 	fi
+	if [ -z "$MYSQL_ROOT_HOST" ]; then
+		MYSQL_ROOT_HOST='127.0.0.1'
+	fi
 
 	>/tmp/bootstrap.sql
 
 	# Create 'root' user
 	cat >> /tmp/bootstrap.sql <<EOF
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD' WITH GRANT OPTION;
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'::1' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'${MYSQL_ROOT_HOST}' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD' WITH GRANT OPTION;
+EOF
+	if [ "$MYSQL_ROOT_SOCKET_AUTH" = "0" ]; then
+		cat >> /tmp/bootstrap.sql <<EOF
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED VIA unix_socket WITH GRANT OPTION;
 EOF
+	else
+		cat >> /tmp/bootstrap.sql <<EOF
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD' WITH GRANT OPTION;
+EOF
+	fi
 
 	# Create 'system' user for healthchecks and shutdown signal
 	cat >> /tmp/bootstrap.sql <<EOF
