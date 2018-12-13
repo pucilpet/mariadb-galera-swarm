@@ -190,7 +190,7 @@ else
 			fi
 			for node in ${GCOMM//,/ }; do
 				[[ $node = $NODE_ADDRESS ]] && continue
-				if socat - TCP:$node:$LISTEN_PORT <<< "seqno:$NODE_ADDRESS:$POSITION:$SAFE_TO_BOOTSTRAP"; then
+				if socat - TCP:$node:$LISTEN_PORT <<< "seqno:$NODE_ADDRESS:$POSITION:$SAFE_TO_BOOTSTRAP" > /dev/null; then
 					SENT_NODES="$SENT_NODES,$node"
 				fi
 				if [[ -n $VIEW_ID ]]; then
