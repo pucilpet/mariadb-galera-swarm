@@ -74,6 +74,12 @@ case "$1" in
 			source /usr/local/lib/startup.sh "$@"
 		fi
 
+		# Allow for scripts above to create a one-time use init-file
+		if [ -f /var/lib/mysql/init-file.sql ]; then
+			mv /var/lib/mysql/init-file.sql /tmp/init-file.sql
+			set -- "$@" --init-file=/tmp/init-file.sql
+		fi
+
 		set +e -m
 		gosu mysql mysqld --console \
 			--wsrep-on=OFF \
