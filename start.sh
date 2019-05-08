@@ -226,7 +226,7 @@ then
 	cat >> /tmp/bootstrap.sql <<EOF
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'${MYSQL_ROOT_HOST}' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD' WITH GRANT OPTION;
 EOF
-	if [ "$MYSQL_ROOT_SOCKET_AUTH" = "0" ]; then
+	if [ "$MYSQL_ROOT_SOCKET_AUTH" != "0" ]; then
 		cat >> /tmp/bootstrap.sql <<EOF
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED VIA unix_socket WITH GRANT OPTION;
 EOF
