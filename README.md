@@ -143,7 +143,14 @@ own port 8080 health check described above until it reports healthy at which poi
 port which just forwards to port 8080. This can be used with Kontena's `wait_for_port` feature to accomodate the
 rolling update mechanism.
 
-## Upgrading from 10.1 to 10.2
+## Upgrading
+
+In general, since MariaDb is not a particularly stable server, often introducing regressions or backwards-compatibility
+breaks with minor version numbers it is always advised to use specific tags in production and test upgrades on a staging
+environment first. Also it is advised to read the commit log to see what changes have been made. No warranty is provided,
+use at your own risk!
+
+### Upgrading from 10.1 to 10.2
 
 Before upgrading you need to grant the `PROCESS` privilege to the xtrabackup user:
 
