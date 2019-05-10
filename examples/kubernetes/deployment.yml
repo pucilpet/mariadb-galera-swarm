@@ -1,0 +1,66 @@
+kind: Deployment
+metadata:
+  name: mariadb-galera-seed
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: mariadb-galera-seed
+    spec:
+      volumes:
+        - name: galera-secrets
+          secret:
+            secretName: mariadb-galera
+        - name: mysql-data
+          emptyDir: {}
+      containers:
+        - name: 'mariadb-galera-seed'
+          image: colinmollenhour/mariadb-galera-swarm
+          args:
+            - seed
+          ports:
+            - containerPort: 3306
+              name: mysql
+            - containerPort: 3309
+              name: recovery
+            - containerPort: 4444
+              name: sst
+            - containerPort: 4567
+              name: gcom
+            - containerPort: 4568
+              name: gcom2
+            - containerPort: 8080
+              name: hup
+            - containerPort: 8081
+              name: hboot
+          env:
+            - name: CLUSTER_NAME
+              value: "my-galera-cluster"
+            - name: DEFAULT_TIME_ZONE
+              value: "+01:00"
+            - name: NODE_ADDRESS
+              value: "^10.233.*.*"
+            - name: SST_METHOD
+              value: "rsync"
+            - name: MYSQL_ROOT_HOST
+              value: "%"
+            - name: MYSQL_ROOT_SOCKET_AUTH
+              value: "0"
+            - name: MYSQL_DATABASE
+              value: portal
+            - name: MYSQL_PASSWORD_FILE
+              value: /etc/secrets/MYSQL_PASSWORD
+            - name: MYSQL_ROOT_PASSWORD_FILE
+              value: /etc/secrets/MYSQL_ROOT_PASSWORD
+            - name: MYSQL_USER
+              value: user
+            - name: XTRABACKUP_PASSWORD_FILE
+              value: /etc/secrets/XTRABACKUP_PASSWORD
+            - name: SYSTEM_PASSWORD_FILE
+              value: /etc/secrets/SYSTEM_PASSWORD
+          volumeMounts:
+            - name: galera-secrets
+              mountPath: "/etc/secrets"
+              readOnly: true
