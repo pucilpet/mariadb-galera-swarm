@@ -1,0 +1,100 @@
+kind: StatefulSet
+metadata:
+  name: mariadb-galera
+  namespace: default
+spec:
+  serviceName: "mariadb-galera"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mariadb-galera-node
+  template:
+    metadata:
+      labels:
+        app: mariadb-galera-node
+    spec:
+      volumes:
+        - name: galera-secrets
+          secret:
+            secretName: mariadb-galera
+      initContainers:
+        # Init container only required to rm lost+found directory on mounted volume
+        - name: cleanup
+          image: colinmollenhour/mariadb-galera-swarm
+          command: [ "/bin/bash", "-c", "--" ]
+          args: ["rm -rf /var/lib/mysql/lost+found"]
+          volumeMounts:
+            - name: datadir
+              mountPath: /var/lib/mysql
+      containers:
+      - name: mariadb-galera
+        image: colinmollenhour/mariadb-galera-swarm
+        env:
+          - name: CLUSTER_NAME
+            value: "my-galera-cluster"
+          - name: LISTEN_WHEN_HEALTHY
+            value: "8082"
+          - name: HEALTHY_WHILE_BOOTING
+            value: "1"
+          - name: DEFAULT_TIME_ZONE
+            value: "+01:00"
+          - name: NODE_ADDRESS
+            value: "^10.233.*.*"
+          - name: SST_METHOD
+            value: "rsync"
+          - name: MYSQL_ROOT_SOCKET_AUTH
+            value: "0"
+          - name: MYSQL_PASSWORD_FILE
+            value: /etc/secrets/MYSQL_PASSWORD
+          - name: MYSQL_ROOT_PASSWORD_FILE
+            value: /etc/secrets/MYSQL_ROOT_PASSWORD
+          - name: MYSQL_USER
+            value: user
+          - name: XTRABACKUP_PASSWORD_FILE
+            value: /etc/secrets/XTRABACKUP_PASSWORD
+          - name: SYSTEM_PASSWORD_FILE
+            value: /etc/secrets/SYSTEM_PASSWORD
+        ports:
+        - containerPort: 3306
+          name: mysql
+        - containerPort: 3309
+          name: recovery
+        - containerPort: 4444
+          name: sst
+        - containerPort: 4567
+          name: gcom
+        - containerPort: 4568
+          name: gcom2
+        - containerPort: 8080
+          name: hup
+        - containerPort: 8081
+          name: hboot
+        args:
+          - node
+          - seed,mariadb-galera-seed.default
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 15
+          timeoutSeconds: 5
+          successThreshold: 2
+        livenessProbe:
+          tcpSocket:
+            port: 8081
+          initialDelaySeconds: 60
+          periodSeconds: 15
+        volumeMounts:
+        - name: datadir
+          mountPath: /var/lib/mysql
+        - name: galera-secrets
+          mountPath: "/etc/secrets"
+          readOnly: true
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "openebs-cstor-ssd"
+      resources:
+        requests:
+          storage: 20Gi
