@@ -19,9 +19,10 @@ endpoints for varying degress of healthiness to aid with integration of load bal
 #### Docker 1.12 Swarm Mode (cli)
 
 ```
- $ docker service create --name galera-seed --replicas 1 -e XTRABACKUP_PASSWORD=<pass> \
+ $ docker network create --driver overlay galera_network
+ $ docker service create --replicas 1 -e XTRABACKUP_PASSWORD=<pass> --network galera_network --name galera-seed \
      colinmollenhour/mariadb-galera-swarm seed
- $ docker service create --name galera --replicas 2 -e XTRABACKUP_PASSWORD=<pass> \
+ $ docker service create --replicas 2 -e XTRABACKUP_PASSWORD=<pass> --network galera_network --name galera \
      colinmollenhour/mariadb-galera-swarm node tasks.galera-seed,tasks.galera
  $ docker service rm galera-seed
  $ docker service scale galera=3
