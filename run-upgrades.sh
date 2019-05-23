@@ -10,7 +10,9 @@ done
 
 version=$(mysql -sNe "SELECT VERSION();")
 if [[ -z $version ]]; then
-	echo "$0: Could not determine MySQL version."
+	echo "$0: _-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^-^_"
+	echo "$0: = Could not login as root to determine MySQL version and run upgrades! ="
+	echo "$0: ------------------------------------------------------------------------"
 	exit 1
 fi
 

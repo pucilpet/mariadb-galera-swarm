@@ -56,6 +56,23 @@ file in the data volume before boot name `/var/lib/mysql/new-cluster`.
 Start server with Galera disabled. Useful for maintenance tasks like performing `mysql_upgrade`
 and resetting root credentials.
 
+#### Reset root password
+
+For example, to reset the root user password, with the Galera container stopped you can run a new temporary
+container like so:
+
+```
+shell1 $ docker run --rm -v {volume-name}:/var/lib/mysql --name no-galera-temp {image} no-galera --skip-grant-tables
+shell2 $ docker exec -it no-galera-temp mysql -u root mysql
+MariaDB> update user set password=password("YOUR_NEW_PASSWORD") where user='root' and host='127.0.0.1';
+MariaDB> flush privileges;
+MariaDB> quit
+shell2 $ exit
+shell1 $ <CTRL+C>
+```
+
+And now start your Galera container back up with the new root password.
+
 ### sleep
 
 Start the container but not the server. Runs "sleep infinity". Useful just to get volumes
