@@ -93,7 +93,7 @@ with any system with DNS-based service discovery such as Kontena, Docker Swarm M
    during the boot phase (waiting for DNS to resolve and recovering wsrep position).
  - `SKIP_TZINFO` (optional) - Specify any value to skip loading of timezone table data when initing a new directory.
  - `DEFAULT_TIME_ZONE` (optional - defaults to the `TZ` envvar or to '+00:00' if undefined) - Specify the database's time zone, either in numeric format (+01:00) or in verbal format (CET, Europe/Bratislava, etc.). The latter one is possible only if you haven't specified `SKIP_TZINFO`. More information about why you would need this is [here](https://mariadb.com/kb/en/library/time-zones/).
- - `SST_METHOD` (optional - defaults to 'xtrabackup-v2')  May be set to 'rsync' or 'mysqldump'.  Other methods requiring further configuration or installed dependencies are not available in this image.
+ - `SST_METHOD` (optional - defaults to 'mariabackup' for 10.2+ and 'xtrabackup-v2' for 10.1)  May also be set to 'rsync' or 'mysqldump'.  Other methods requiring further configuration or installed dependencies are not available in this image.
  - `SKIP_UPGRADES` (optional - prevent running `run-upgrades.sh` script)
 
 Additional variables for "seed":
