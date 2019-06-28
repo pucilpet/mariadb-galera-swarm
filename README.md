@@ -16,6 +16,8 @@ endpoints for varying degress of healthiness to aid with integration of load bal
 
 ### Examples
 
+#### [Kubernetes](https://github.com/colinmollenhour/mariadb-galera-swarm/tree/master/examples/kubernetes)
+
 #### Docker 1.12 Swarm Mode (cli)
 
 ```
