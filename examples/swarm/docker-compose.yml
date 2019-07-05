@@ -27,7 +27,7 @@ services:
       - HEALTHY_WHILE_BOOTING=1
     networks:
       - galera_network
-    command: node seed,node
+    command: node tasks.seed,tasks.node
     volumes:
       - mysql-data:/var/lib/mysql
     deploy:
