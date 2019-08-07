@@ -213,7 +213,7 @@ then
 		MYSQL_DATABASE=$(cat $MYSQL_DATABASE_FILE)
 	fi
 	if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
-		MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
+		MYSQL_ROOT_PASSWORD=$(head -c 32 /dev/urandom | base64 | head -c 32)
 		echo "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD"
 	fi
 	if [ -z "$MYSQL_ROOT_HOST" ]; then
