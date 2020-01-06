@@ -21,8 +21,13 @@ COPY *.sh                    /usr/local/bin/
 COPY bin/galera-healthcheck  /usr/local/bin/galera-healthcheck
 COPY primary-component.sql   /
 
-# Fix permissions
-RUN chown -R mysql:mysql /etc/mysql && chmod -R go-w /etc/mysql
+RUN set -ex ;\
+    # Fix permissions
+    chown -R mysql:mysql /etc/mysql ;\
+    chmod -R go-w /etc/mysql ;\
+    # Disable code that deletes progress file after SST
+    sed -i 's#-p \$progress#-p \$progress-XXX#' /usr/bin/wsrep_sst_mariabackup ;\
+    sed -i 's#-p \$progress#-p \$progress-XXX#' /usr/bin/wsrep_sst_xtrabackup
 
 EXPOSE 3306 4444 4567 4567/udp 4568 8080 8081
 

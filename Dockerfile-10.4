@@ -26,8 +26,7 @@ RUN set -ex ;\
     # Remove auth_socket config - already enabled in 10.4 by default
     rm /etc/mysql/conf.d/31-auth-socket.cnf ;\
     # Disable code that deletes progress file after SST
-    sed -i 's/rm \$progress$/#rm \$progress/' /usr/bin/wsrep_sst_mariabackup ;\
-    sed -i 's/rm -f \$progress$/#rm -f \$progress/' /usr/bin/wsrep_sst_mariabackup
+    sed -i 's#-p \$progress#-p \$progress-XXX#' /usr/bin/wsrep_sst_mariabackup
 
 EXPOSE 3306 4444 4567 4567/udp 4568 8080 8081
 
