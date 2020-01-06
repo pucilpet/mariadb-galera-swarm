@@ -8,15 +8,15 @@ if [[ $IMAGE != "--cleanup" ]]; then
     docker run -d --name cm-galera-test-seed --network cm-galera-test --network-alias seed \
       -e XTRABACKUP_PASSWORD=foobar \
       -e SKIP_TZINFO=1 \
-      $IMAGE seed
+      $IMAGE seed --log-bin=ON
 
-    sleep 3
+    sleep 5
     docker logs cm-galera-test-seed
     docker run --name cm-galera-test-node --network cm-galera-test \
       -e XTRABACKUP_PASSWORD=foobar \
       -e SKIP_TZINFO=1 \
       -e GCOMM_MINIMUM=1 \
-      $IMAGE node seed
+      $IMAGE node seed --log-bin=ON
 fi
 if [[ -z $SKIP_CLEANUP ]]; then
     echo "Cleaning up..."

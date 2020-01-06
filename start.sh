@@ -381,7 +381,7 @@ rm -rf $(dirname $fifo) \
   && mkfifo $fifo \
   && chmod o+rw $fifo \
   && echo "Tailing $fifo..." \
-  && tail -F $fifo &
+  && tail -f $fifo &
 tail_pid=$!
 
 # Port 8080 only reports healthy when ready to serve clients
