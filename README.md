@@ -1,9 +1,17 @@
 # MariaDb Galera Cluster
 
-This Docker container is based on the official Docker `mariadb:10.1` image and is designed to be
-compatible with auto-scheduling systems, specifically Docker Swarm Mode (1.12+) and Kontena.
-However, it could also work with manual scheduling (`docker run`) by specifying the correct
+This Docker container is based on the official Docker [mariadb](https://hub.docker.com/_/mariadb/) image and is designed to be
+compatible with auto-scheduling systems, specifically Kubernetes, Docker Swarm Mode and Kontena Classic.
+It could also work with manual scheduling (`docker run`) by specifying the correct
 environment variables or possibly other scheduling systems that use similar conventions.
+
+## [Tags](https://hub.docker.com/r/colinmollenhour/mariadb-galera-swarm/tags)
+
+It is recommended to test all upgrades carefully! The `latest` tag should not be used for production!
+
+Several version are supported and rebuilt and tagged occasionally with both a version number and date built
+so just use the latest build for your major version that suits you or build your own version. Be sure to test
+replication functionality when building new versions using the `test.sh` script!
 
 ## How It Works
 
