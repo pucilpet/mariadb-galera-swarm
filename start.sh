@@ -323,23 +323,7 @@ case $START_MODE in
 					GCOMM+="$SEP$ADDR"
 				else
 					RESOLVE=1
-					if [[ $ADDR =~ "_" ]]; then
-						TASK_ID=0
-						IPS=""
-						while :
-						do
-							((TASKID++))
-							IP=$(getent hosts "$ADDR.$TASK_ID")
-							if [[ $? != 0 ]]; then
-								break;
-							fi
-							IPS+="$IP,"
-						done
-						IPS=$(echo $IPS | sed 's/,$//')
-						GCOMM+="$SEP$IPS"
-					else
-						GCOMM+="$SEP$(getent hosts "$ADDR" | awk '{ print $1 }' | paste -sd ",")"
-					fi
+					GCOMM+="$SEP$(getent hosts "$ADDR" | awk '{ print $1 }' | paste -sd ",")"
 				fi
 				if [ -n "$GCOMM" ]; then
 					SEP=,
