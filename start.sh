@@ -133,13 +133,13 @@ fi
 echo "...------======------... MariaDB Galera Start Script ...------======------..."
 echo "Got NODE_ADDRESS=$NODE_ADDRESS"
 
+MYSQL_MODE_ARGS=""
+
 # Allow for easily adding more startup scripts
 export NODE_ADDRESS
 if [ -f /usr/local/lib/startup.sh ]; then
 	source /usr/local/lib/startup.sh "$@"
 fi
-
-MYSQL_MODE_ARGS=""
 
 #
 # Read optional secrets from files
