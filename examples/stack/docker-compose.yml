@@ -1,0 +1,29 @@
+version: '3.7'
+
+services:
+  node:
+    image: virtpanel/mariadb-galera-swarm
+    command: node tasks.galera-seed,galera_node
+    deploy:
+      replicas: 4
+    hostname: "{{.Service.Name}}.{{.Task.Slot}}"
+    networks:
+      - galera
+      - haproxy
+    volumes:
+      - type: bind
+        source: /d/galera/data
+        target: /var/lib/mysql
+      - type: bind
+        source: /mnt/gfs/galera/secrets
+        target: /run/secrets
+        read_only: true
+
+networks:
+  galera:
+    driver: overlay
+    external: true
+  haproxy:
+    driver: overlay
+    external: true
+
