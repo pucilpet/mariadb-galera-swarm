@@ -323,14 +323,29 @@ case $START_MODE in
 					GCOMM+="$SEP$ADDR"
 				else
 					RESOLVE=1
-					GCOMM+="$SEP$(getent hosts "$ADDR" | awk '{ print $1 }' | paste -sd ",")"
+					if [[ $ADDR =~ "_" ]]; then
+						if [ ! -n $LOG_OUT_HOSTNAMES ]; then
+							LOG_OUT_HOSTNAMES=1
+							echo "Underscore in container name detected - trying predictable hostnames"
+						fi
+						IPS=""
+						for TASK_ID in {1..10}; do
+							HOSTNAME="$ADDR.$TASK_ID"
+							GCOMM+="$SEP$(getent hosts "$HOSTNAME" | awk '{ print $1 }' | paste -sd ","),"
+						done
+					else
+						GCOMM+="$SEP$(getent hosts "$ADDR" | awk '{ print $1 }' | paste -sd ",")"
+					fi
 				fi
 				if [ -n "$GCOMM" ]; then
 					SEP=,
 				fi
 			done
-			GCOMM=${GCOMM%%,}                        # strip trailing commas
-			GCOMM=$(echo "$GCOMM" | sed 's/,\+/,/g') # strip duplicate commas
+			GCOMM=$(echo "$GCOMM" | sed 's/[, ]\+/,/g') # strip duplicate commas and whitespace
+			GCOMM=${GCOMM#,} # strip leading commas
+			GCOMM=${GCOMM%,} # strip trailing commas
+
+			echo "Found Servers: $GCOMM"
 
 			# Allow user to bypass waiting for other IPs
 			if [[ -f /var/lib/mysql/skip-gcomm-wait ]]; then
