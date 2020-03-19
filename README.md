@@ -24,25 +24,11 @@ endpoints for varying degress of healthiness to aid with integration of load bal
 
 ### Examples
 
-#### [Kubernetes](https://github.com/colinmollenhour/mariadb-galera-swarm/tree/master/examples/kubernetes)
+- [Kubernetes](https://github.com/colinmollenhour/mariadb-galera-swarm/tree/master/examples/kubernetes)
+- [Docker Swarm](https://github.com/colinmollenhour/mariadb-galera-swarm/blob/master/examples/swarm)
+- [Kontena Classic](https://github.com/colinmollenhour/mariadb-galera-swarm/blob/master/examples/kontena)
 
-#### Docker 1.12 Swarm Mode (cli)
-
-```
- $ docker network create --driver overlay galera_network
- $ docker service create --replicas 1 -e XTRABACKUP_PASSWORD=<pass> --network galera_network --name galera-seed \
-     colinmollenhour/mariadb-galera-swarm seed
- $ docker service create --replicas 2 -e XTRABACKUP_PASSWORD=<pass> --network galera_network --name galera \
-     colinmollenhour/mariadb-galera-swarm node tasks.galera-seed,tasks.galera
- $ docker service rm galera-seed
- $ docker service scale galera=3
-```
-
-#### [Docker 1.13 Swarm Mode (stack)](https://github.com/colinmollenhour/mariadb-galera-swarm/blob/master/examples/swarm)
-
-#### [Kontena](https://github.com/colinmollenhour/mariadb-galera-swarm/blob/master/examples/kontena)
-
-Please submit more examples for Kubernetes, Mesos, etc. and also improvements for existing examples!
+Please submit more examples for Mesos, etc. and also improvements for existing examples!
 
 ## Commands
 
