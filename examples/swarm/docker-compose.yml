@@ -32,7 +32,6 @@ services:
       - mysql-data:/var/lib/mysql
     deploy:
       replicas: 0
-      endpoint_mode: dnsrr
     secrets:
       - xtrabackup_password
 
